@@ -31,3 +31,6 @@ release
 # Test output
 test-results
 playwright-report
+
+# Store listing assets (covers, video, copy) are kept locally, not in git
+store-assets/
