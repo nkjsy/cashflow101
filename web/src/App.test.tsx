@@ -1,16 +1,20 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { createGame, totalExpenses } from './game-core/engine'
+import { createGame, executeCommand, totalExpenses } from './game-core/engine'
+import { chooseAutoplayCommand } from './simulation/simulator'
+import { setLanguage } from './i18n'
+import { platform, resetAdPacing, setPlatform } from './platform'
 
 const { playSound } = vi.hoisted(() => ({ playSound: vi.fn() }))
-vi.mock('./game-audio', () => ({ GameAudio: class { play = playSound } }))
+vi.mock('./game-audio', () => ({ GameAudio: class { play = playSound; unlock = vi.fn() } }))
 
 describe('cashflow app', () => {
   beforeEach(() => {
     localStorage.clear()
+    setLanguage('zh')
     playSound.mockClear()
   })
   afterEach(cleanup)
@@ -108,7 +112,7 @@ describe('cashflow app', () => {
 
     expect(container.querySelectorAll('.space-guide')).toHaveLength(0)
     expect(container.querySelectorAll('.board-space[tabindex="0"]')).toHaveLength(0)
-    expect(screen.queryByText('现金流日收入计算')).not.toBeInTheDocument()
+    expect(screen.queryByText('收益日收入计算')).not.toBeInTheDocument()
     expect(screen.queryByText(/工资和每月现金流不参与/)).not.toBeInTheDocument()
   })
 
@@ -131,9 +135,9 @@ describe('cashflow app', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: /继续上次游戏/ }))
 
-    expect(screen.getByText('快车道企业', { selector: '.section-title span' })).toBeInTheDocument()
+    expect(screen.getByText('自由快道企业', { selector: '.section-title span' })).toBeInTheDocument()
     expect(screen.getByText('社区清洁能源网络')).toBeInTheDocument()
-    expect(screen.getByText('+US$14,000/现金流日')).toBeInTheDocument()
+    expect(screen.getByText('+US$14,000/收益日')).toBeInTheDocument()
     expect(screen.getByText('1 项持有')).toBeInTheDocument()
     expect(screen.getByText('基础设施')).toBeInTheDocument()
   })
@@ -227,7 +231,7 @@ describe('cashflow app', () => {
       opportunity: {
         id: 'asset-fast-track-test',
         name: '出圈测试资产',
-        description: '购买后进入快车道。',
+        description: '购买后进入自由快道。',
         downPayment: 1000,
         mortgage: 4000,
         cashFlow: 240,
@@ -240,20 +244,20 @@ describe('cashflow app', () => {
     fireEvent.click(screen.getByRole('button', { name: /继续上次游戏/ }))
     fireEvent.click(screen.getByRole('button', { name: '购买' }))
 
-    expect(screen.getByRole('dialog', { name: '你进入了快车道！' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: '你进入了自由快道！' })).toBeInTheDocument()
     expect(screen.getByText('财务自由达成')).toBeInTheDocument()
     expect(screen.getByText(player.dream)).toBeInTheDocument()
     expect(screen.getByText('起始收入计算')).toBeInTheDocument()
     expect(screen.getByText(/只使用退出时的被动收入/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '驶入快车道' }))
-    expect(screen.queryByRole('dialog', { name: '你进入了快车道！' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '驶入自由快道' }))
+    expect(screen.queryByRole('dialog', { name: '你进入了自由快道！' })).not.toBeInTheDocument()
     expect(screen.getByText(`我的梦想：${player.dream}`)).toBeInTheDocument()
     expect(screen.getByText(`梦想：${player.dream}`)).toBeInTheDocument()
-    const formulaButton = screen.getByRole('button', { name: '现金流日收入计算方式' })
+    const formulaButton = screen.getByRole('button', { name: '收益日收入计算方式' })
     expect(formulaButton).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(formulaButton)
     expect(formulaButton).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('现金流日收入计算')).toBeInTheDocument()
+    expect(screen.getByText('收益日收入计算')).toBeInTheDocument()
     expect(screen.getByText('被动收入取整到最近千位；工资和每月现金流不参与。')).toBeInTheDocument()
   })
 
@@ -273,18 +277,18 @@ describe('cashflow app', () => {
     fireEvent.click(screen.getByRole('button', { name: /继续上次游戏/ }))
 
     expect(screen.getByRole('button', { name: '扩张 0/3' })).toHaveAttribute('aria-describedby', 'expand-help')
-    expect(screen.getByRole('combobox', { name: '选择快车道企业' })).toHaveValue('software')
+    expect(screen.getByRole('combobox', { name: '选择自由快道企业' })).toHaveValue('software')
     expect(screen.getByRole('button', { name: '规模化' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '韧性化' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '再投资' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '出售企业' })).toBeEnabled()
-    expect(screen.getByText(/最多扩张 3 次.*支付 US\$60,000.*固定增加 US\$6,000.*提升到 US\$126,000.*还差 US\$24,000.*仍需购买快车道企业/)).toHaveClass('strategy-tooltip')
+    expect(screen.getByText(/最多扩张 3 次.*支付 US\$60,000.*固定增加 US\$6,000.*提升到 US\$126,000.*还差 US\$24,000.*仍需购买自由快道企业/)).toHaveClass('strategy-tooltip')
     expect(screen.getByRole('button', { name: '风控' })).toBeEnabled()
     expect(screen.queryByText('失业保险')).not.toBeInTheDocument()
     expect(screen.getByText(/支付 US\$25,000 获得维护保险.*重大维护损失由保险承担 50%.*执行后仍可掷骰/)).toHaveClass('strategy-tooltip')
     expect(screen.getByRole('button', { name: '梦想准备 0/3' })).toHaveAttribute('aria-describedby', 'dream-preparation-help')
     expect(screen.getByText(/达到 3\/3 不会直接获胜.*经过自己的梦想格也可购买.*仍须支付梦想/)).toHaveClass('strategy-tooltip')
-    fireEvent.change(screen.getByLabelText('选择快车道保险'), { target: { value: 'lawsuit' } })
+    fireEvent.change(screen.getByLabelText('选择自由快道保险'), { target: { value: 'lawsuit' } })
     expect(screen.getByText(/支付 US\$25,000 获得诉讼保险.*商业诉讼损失由保险承担 50%/)).toHaveClass('strategy-tooltip')
     fireEvent.click(screen.getByRole('button', { name: '风控' }))
     expect(screen.getByText(/获得诉讼保险/, { selector: '.activity p' })).toBeInTheDocument()
@@ -305,7 +309,7 @@ describe('cashflow app', () => {
     expect(screen.getByRole('button', { name: '失业保险' })).toBeInTheDocument()
     expect(screen.getByText('先经营，或直接前进').closest('.ready-heading')).toHaveAttribute('tabindex', '0')
     expect(screen.getByText(/先购买企业或房地产等非证券资产/)).toHaveClass('strategy-tooltip')
-    expect(screen.getByText(/Rat Race 只有失业事件.*维护险和诉讼险在进入快车道后通过风控购买/)).toHaveClass('strategy-tooltip')
+    expect(screen.getByText(/打工圈只有失业事件.*维护险和诉讼险在进入自由快道后通过风控购买/)).toHaveClass('strategy-tooltip')
     expect(screen.getByText(/减免比例 10%.*减免额按 \$100 取整/)).toHaveClass('strategy-tooltip')
     expect(screen.queryByRole('button', { name: '借款' })).not.toBeInTheDocument()
   })
@@ -394,5 +398,180 @@ describe('cashflow app', () => {
       const savedGame = JSON.parse(localStorage.getItem('cashflow-lab-save-v1')!)
       expect(savedGame.currentPlayerIndex).not.toBe(0)
     }, { timeout: 2500 })
+  })
+})
+describe('English app', () => {
+  const visibleChinese = () =>
+    (document.body.textContent ?? '').replace('中文', '').match(/[一-鿿]+/g) ?? []
+
+  const autoplay = (game: ReturnType<typeof createGame>, steps: number) => {
+    let state = game
+    for (let step = 0; step < steps && !state.winnerId; step += 1) {
+      const result = executeCommand(state, chooseAutoplayCommand(state))
+      if (!result.ok) break
+      state = result.state
+    }
+    return state
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    setLanguage('en')
+    playSound.mockClear()
+  })
+  afterEach(cleanup)
+
+  it('sets up and starts a quick game without any Chinese on screen', () => {
+    render(<App />)
+
+    expect(visibleChinese()).toEqual([])
+    expect(screen.getByRole('button', { name: 'Quick · ~12 min' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.change(screen.getByLabelText('Choose profession'), { target: { value: '医生' } })
+    expect(screen.getByText('Very high income, but the heaviest student loans and fixed costs.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Start new game/ }))
+
+    expect(screen.getByText('AI rivals’ public finances')).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('cashflow-lab-save-v1') ?? '{}').setup.pace).toBe('quick')
+    expect(visibleChinese()).toEqual([])
+  })
+
+  it('switches language in place and remembers it', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+    expect(screen.getByRole('button', { name: /开始新游戏/ })).toBeInTheDocument()
+    expect(localStorage.getItem('cashflow-lab-lang')).toBe('zh')
+    fireEvent.click(screen.getByRole('button', { name: 'EN' }))
+    expect(screen.getByRole('button', { name: /Start new game/ })).toBeInTheDocument()
+  })
+
+  it('shows a played-out game, its log and final ranking in English', () => {
+    const midGame = autoplay(createGame(3, 21), 400)
+    localStorage.setItem('cashflow-lab-save-v1', JSON.stringify(midGame))
+    const { unmount } = render(<App />)
+    expect(visibleChinese()).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: /Continue last game/ }))
+    expect(screen.getByText('Event log')).toBeInTheDocument()
+    expect(visibleChinese()).toEqual([])
+    unmount()
+
+    const humanFreedomLaneTurn = (state: ReturnType<typeof createGame>) =>
+      state.players[0].phase === 'fast-track' && (state.players[0].fastTrackTurns ?? 0) >= 2 && state.currentPlayerIndex === 0 && state.turnStage === 'awaiting-roll'
+    let freedomLaneTurn = createGame(1, 1)
+    for (let seed = 1; seed <= 20 && !humanFreedomLaneTurn(freedomLaneTurn); seed += 1) {
+      freedomLaneTurn = createGame(1, seed, undefined, undefined, 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'quick')
+      for (let step = 0; step < 4000 && !humanFreedomLaneTurn(freedomLaneTurn); step += 1) {
+        const result = executeCommand(freedomLaneTurn, chooseAutoplayCommand(freedomLaneTurn))
+        if (!result.ok || result.state.winnerId) break
+        freedomLaneTurn = result.state
+      }
+    }
+    expect(humanFreedomLaneTurn(freedomLaneTurn)).toBe(true)
+    localStorage.setItem('cashflow-lab-save-v1', JSON.stringify(freedomLaneTurn))
+    const freedomLane = render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /Continue last game/ }))
+    expect(screen.getByRole('button', { name: /Risk Cover/ })).toBeInTheDocument()
+    expect(visibleChinese()).toEqual([])
+    freedomLane.unmount()
+
+    const finished = autoplay(midGame, 6000)
+    expect(finished.winnerId).not.toBeNull()
+    localStorage.setItem('cashflow-lab-save-v1', JSON.stringify(finished))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /Continue last game/ }))
+    expect(screen.getByText('Game over')).toBeInTheDocument()
+    expect(visibleChinese()).toEqual([])
+  })
+})
+
+describe('portal integration', () => {
+  const webPlatform = platform()
+  const createFakePortal = () => {
+    const fake = {
+      name: 'crazygames' as const,
+      ads: 0,
+      gameplayStart: vi.fn(),
+      gameplayStop: vi.fn(),
+      loadingStop: vi.fn(),
+      showMidgameAd: async (hooks: { onStart: () => void }) => {
+        fake.ads += 1
+        hooks.onStart()
+        return 'shown' as const
+      },
+      isMuted: () => false,
+      onMuteChange: () => () => {},
+    }
+    return fake
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    setLanguage('en')
+    playSound.mockClear()
+  })
+  afterEach(() => {
+    cleanup()
+    setPlatform(webPlatform)
+    resetAdPacing()
+  })
+
+  it('reports gameplay and only shows ads between games, never before the first one', async () => {
+    const portal = createFakePortal()
+    setPlatform(portal)
+    resetAdPacing(0)
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Start new game/ }))
+    expect(screen.getByText('Event log')).toBeInTheDocument()
+    expect(portal.ads).toBe(0)
+    expect(portal.gameplayStart).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByTitle('Main menu (game is saved)'))
+    expect(portal.gameplayStop).toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /Start new game/ }))
+    const confirmation = screen.getByRole('alertdialog')
+    expect(confirmation).toHaveTextContent('overwrite your current save')
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Start new game' }))
+
+    expect(await screen.findByText('Event log')).toBeInTheDocument()
+    expect(portal.ads).toBe(1)
+  })
+
+  it('shows a break ad when the player reaches the Freedom Lane', async () => {
+    const portal = createFakePortal()
+    setPlatform(portal)
+    const game = createGame(1, 42)
+    game.currentPlayerIndex = 0
+    const player = game.players[0]
+    player.cash = 10000
+    player.passiveIncome = totalExpenses(player) - 100
+    game.pendingDecision = {
+      type: 'opportunity',
+      playerId: player.id,
+      opportunity: { id: 'asset-fast-track-test', name: '出圈测试资产', description: '购买后进入自由快道。', downPayment: 1000, mortgage: 4000, cashFlow: 240 },
+    }
+    game.turnStage = 'awaiting-decision'
+    localStorage.setItem('cashflow-lab-save-v1', JSON.stringify(game))
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /Continue last game/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Buy' }))
+    resetAdPacing(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Hit the Freedom Lane' }))
+
+    await waitFor(() => expect(portal.ads).toBe(1))
+  })
+
+  it('confirms save deletion inside the game instead of a browser dialog', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /Start new game/ }))
+    fireEvent.click(screen.getByTitle('Delete save and restart'))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByText('Event log')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Delete save and restart'))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete save and restart' }))
+    expect(screen.getByRole('button', { name: /Start new game/ })).toBeInTheDocument()
+    expect(localStorage.getItem('cashflow-lab-save-v1')).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
-# 现金流实验室
+# Ratrace
 
-一个以文字和财务报表为主的单机现金流游戏。目前支持引导/标准模式，以及一名玩家与 1–3 名基础 AI 对战。
+一个以文字和财务报表为主的单机个人理财策略游戏。目前支持引导/标准模式，以及一名玩家与 1–3 名基础 AI 对战。
 
 ## 快速运行
 
@@ -39,6 +39,9 @@ npm run test:e2e
 # 批量运行无界面自动对局
 npm run simulate -- --games 10000 --max-rounds 100 --seed 1 --ai 3
 
+# 批量模拟快速局（用于校准 QUICK_PACE 参数）
+npm run simulate -- --games 2000 --seed 1 --ai 1 --pace quick
+
 # 静态检查
 npm run lint
 
@@ -50,6 +53,24 @@ npm run preview
 ```
 
 更多项目结构和测试说明参见 [web/README.md](web/README.md)。批量测试的完整步骤参见 [大规模自动对局测试指南](docs/mass-simulation-testing-guide.md)，其他规则与产品文档位于 [docs](docs)。
+
+## 发布打包
+
+```powershell
+# CrazyGames 上传包：动态加载 CrazyGames SDK v3，存档走 Data 模块，在自然断点插播插屏广告
+npm run build:crazygames      # 输出 release/ratrace-crazygames.zip
+
+# 通用网页包（itch.io / 自托管）：无 SDK、无广告
+npm run build:web             # 输出 release/ratrace-web.zip
+
+# 本地验证 CrazyGames 包：在 127.0.0.1 上 SDK 自动进入 local 模式并播放演示广告
+npm run preview:crazygames -- --host 127.0.0.1
+```
+
+- 平台由构建变量 `VITE_PLATFORM` 决定（见 `web/.env.crazygames`），适配代码在 `web/src/platform/`。
+- 插屏广告只在两个自然断点出现：进入自由快道、开始本次会话的第二局及以后；两次广告至少间隔 3 分钟，广告播放期间暂停 AI 并静音。
+- CrazyGames SDK 加载失败或域名不受支持时，游戏自动退回普通网页模式，不影响游玩。
+- 界面支持英文和中文，默认跟随平台 locale 或浏览器语言；英文文案在 `web/src/i18n/`，缺少翻译会导致 TypeScript 编译失败。
 
 ## 常见问题
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { MARKETS, PROFESSIONS } from './data'
-import { assetUpgradeCost, canTakeLoan, createGame as createSeededGame, currentEconomicCycle, executeCommand, insuranceCost, insuranceCoverageRate, monthlyCashFlow, replayGame, totalExpenses } from './engine'
+import { MARKETS, PROFESSIONS, SMALL_DEALS } from './data'
+import { assetUpgradeCost, canTakeLoan, createGame as createSeededGame, currentEconomicCycle, executeCommand, insuranceCost, insuranceCoverageRate, monthlyCashFlow, pacedOpportunity, QUICK_PACE, fastTrackGoalGain, fastTrackStartingIncome, replayGame, totalExpenses } from './engine'
+import { chooseAutoplayCommand } from '../simulation/simulator'
 
 const createGame = (...args: Parameters<typeof createSeededGame>) => {
   const state = createSeededGame(...args)
@@ -411,7 +412,7 @@ describe('game core', () => {
     if (!result.ok) return
     expect(result.state.players[0].phase).toBe('fast-track')
     expect(result.state.players[0].insurance).toBeUndefined()
-    expect(result.state.logs.at(-1)?.message).toContain('快车道没有失业事件，失业保险自动终止')
+    expect(result.state.logs.at(-1)?.message).toContain('自由快道没有失业事件，失业保险自动终止')
   })
 
   it('explains when a zero-income stock triggers Fast Track through portfolio income', () => {
@@ -1370,5 +1371,65 @@ describe('game core', () => {
     expect(holding.quantity).toBe(200)
     expect(holding.costPerUnit).toBe(5)
     expect((holding.quantity ?? 0) * (holding.costPerUnit ?? 0)).toBe(1000)
+  })
+})
+describe('quick pace', () => {
+  const quickGame = (seed = 42) => createGame(1, seed, undefined, undefined, 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'quick')
+
+  it('keeps standard setups unchanged', () => {
+    const standard = createGame(1, 42)
+    expect(standard.setup.pace).toBeUndefined()
+    expect(standard.players[0].cash).toBe(createGame(1, 42, undefined, undefined, 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'standard').players[0].cash)
+  })
+
+  it('starts with more savings, capped for high earners', () => {
+    const standard = createGame(1, 42, undefined, '教师')
+    const quick = createGame(1, 42, undefined, '教师', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'quick')
+    const teacher = PROFESSIONS.find((profession) => profession.title === '教师')!
+    expect(quick.setup.pace).toBe('quick')
+    expect(quick.players[0].cash - standard.players[0].cash).toBe(Math.round(teacher.savings * QUICK_PACE.savingsMultiplier / 100) * 100 - teacher.savings)
+    const doctor = createGame(1, 42, undefined, '医生', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'quick').players[0]
+    expect(doctor.cash).toBe(doctor.salary - doctor.baseExpenses + QUICK_PACE.savingsCap)
+  })
+
+  it('draws deals with boosted cash flow', () => {
+    const state = quickGame()
+    state.pendingDecision = { type: 'deal-choice', playerId: state.players[0].id }
+    state.turnStage = 'awaiting-decision'
+    const result = executeCommand(state, { type: 'DRAW_DEAL', actorId: state.players[0].id, dealSize: 'small' })
+    expect(result.ok).toBe(true)
+    if (!result.ok || result.state.pendingDecision?.type !== 'opportunity') throw new Error('Expected an opportunity')
+    const drawn = result.state.pendingDecision.opportunity
+    const original = [...SMALL_DEALS].find((deal) => deal.id === drawn.id)!
+    expect(drawn).toEqual(pacedOpportunity(original, 'quick'))
+    if (original.cashFlow > 0) expect(drawn.cashFlow).toBeGreaterThan(original.cashFlow)
+  })
+
+  it('halves the Freedom Lane income target and keeps replay deterministic', () => {
+    const state = quickGame()
+    const player = state.players[0]
+    player.cash = 10000
+    player.passiveIncome = totalExpenses(player) - 100
+    state.pendingDecision = {
+      type: 'opportunity',
+      playerId: player.id,
+      opportunity: { id: 'exit-asset', name: '出圈资产', description: '用于验证快速局目标。', downPayment: 1000, mortgage: 0, cashFlow: 200 },
+    }
+    state.turnStage = 'awaiting-decision'
+    const result = executeCommand(state, { type: 'BUY_OPPORTUNITY', actorId: player.id })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const exited = result.state.players[0]
+    expect(exited.phase).toBe('fast-track')
+    expect(fastTrackGoalGain(exited)).toBe(QUICK_PACE.fastTrackGoalGain)
+    expect(fastTrackStartingIncome(exited)).toBe(exited.fastTrackIncome)
+
+    let game = quickGame(7)
+    for (let step = 0; step < 60; step += 1) {
+      const next = executeCommand(game, chooseAutoplayCommand(game))
+      if (!next.ok) break
+      game = next.state
+    }
+    expect(replayGame(game)).toEqual(game)
   })
 })

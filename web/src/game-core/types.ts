@@ -1,3 +1,5 @@
+import type { LocalText } from '../i18n/format'
+
 export type DisplayMode = 'guided' | 'standard'
 export type AiDifficulty = 'cautious' | 'standard' | 'expert'
 export type AiPersonality = 'conservative' | 'balanced' | 'aggressive'
@@ -5,6 +7,7 @@ export type MarketPricingVersion = 'legacy-fixed' | 'scaled-equity'
 export type FastTrackBalanceVersion = 'legacy' | 'income-scaled' | 'accelerated'
 export type RatRaceBalanceVersion = 'legacy' | 'global-v2'
 export type StrategyRulesVersion = 'legacy' | 'strategy-v1'
+export type GamePace = 'standard' | 'quick'
 export type EconomicCycleId = 'steady-growth' | 'property-boom' | 'high-interest'
 export type LongTermGoalId = 'diversified' | 'master-asset' | 'debt-free'
 export type InsuranceKind = 'job-loss' | 'maintenance' | 'lawsuit'
@@ -59,6 +62,7 @@ export type PlayerState = {
   phase: Phase
   fastTrackIncome: number
   fastTrackGoal: number
+  fastTrackGoalGain?: number
   fastTrackTurns: number
   fastTrackBusinesses?: FastTrackBusiness[]
   fastTrackExpansions?: number
@@ -156,7 +160,9 @@ export type PendingDecision =
 export type GameLogEntry = {
   id: number
   playerId: string
+  // Chinese rendering of `text`; older saves only have this field.
   message: string
+  text?: LocalText
   tone: 'neutral' | 'positive' | 'negative'
 }
 
@@ -174,6 +180,7 @@ export type GameState = {
     fastTrackBalanceVersion?: FastTrackBalanceVersion
     ratRaceBalanceVersion?: RatRaceBalanceVersion
     strategyRulesVersion?: StrategyRulesVersion
+    pace?: GamePace
   }
   commandHistory: GameCommand[]
   revision: number

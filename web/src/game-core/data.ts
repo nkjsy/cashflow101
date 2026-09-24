@@ -141,7 +141,7 @@ export const FAST_TRACK_RISKS: FastTrackRisk[] = [
   { id: 'risk-tax-audit', name: '税务审计', description: '补缴税款与专业服务费。', effect: 'cash-percent', amount: 0.2 },
   { id: 'risk-lawsuit', name: '商业诉讼', description: '支付和解金与律师费。', effect: 'cash-fixed', amount: 150000 },
   { id: 'risk-divorce', name: '离婚财产分割', description: '可动用现金减少一半。', effect: 'cash-percent', amount: 0.5 },
-  { id: 'risk-bad-partner', name: '合伙人违约', description: '现金流日收入永久下降。', effect: 'income-percent', amount: 0.1 },
+  { id: 'risk-bad-partner', name: '合伙人违约', description: '收益日收入永久下降。', effect: 'income-percent', amount: 0.1 },
   { id: 'risk-maintenance', name: '重大维护', description: '基础设施需要紧急维护。', effect: 'cash-fixed', amount: 75000 },
   { id: 'risk-business-loss', name: '经营损失', description: '一次性承担业务损失。', effect: 'cash-fixed', amount: 100000 },
 ]
