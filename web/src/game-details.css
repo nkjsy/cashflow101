@@ -410,7 +410,7 @@
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 4px;
-  font: 600 11px 'Noto Sans SC', sans-serif;
+  font: 600 11px 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .personality-selectors small {
@@ -686,7 +686,7 @@
 
 .progress-band .top-brand strong {
   color: white;
-  font: 800 13px 'Noto Sans SC', sans-serif;
+  font: 800 13px 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .progress-summary {
@@ -713,7 +713,7 @@
 .progress-band .turn strong {
   color: #174f3e;
   background: #f5cf73;
-  font: 700 11px 'Noto Sans SC', sans-serif;
+  font: 700 11px 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 .progress-band .icon-button {
@@ -1799,4 +1799,30 @@
   color: var(--muted);
   font-size: 10px;
   line-height: 1.5;
+}
+/* English: Latin-first fonts (CJK fonts draw curly quotes full-width) and room for longer labels. */
+html:lang(en) body,
+html:lang(en) .progress-band .top-brand strong,
+html:lang(en) .progress-band .turn strong,
+html:lang(en) .celebration-dream strong {
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif !important;
+}
+
+html:lang(en) .progress-summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 1081px) {
+  html:lang(en) .progress-band {
+    grid-template-columns: auto auto minmax(160px, 210px) minmax(60px, 1fr) minmax(0, 1fr) auto auto;
+  }
+}
+
+@media (min-width: 781px) and (max-width: 1080px) {
+  html:lang(en) .progress-band {
+    grid-template-columns: auto minmax(140px, 190px) minmax(60px, 1fr) auto auto;
+  }
 }

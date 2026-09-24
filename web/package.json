@@ -11,9 +11,13 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "simulate": "tsx src/simulation/cli.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:web": "tsc -b && vite build --outDir dist-web && node scripts/zip-dist.mjs dist-web release/ratrace-web.zip",
+    "build:crazygames": "tsc -b && vite build --mode crazygames --outDir dist-crazygames && node scripts/zip-dist.mjs dist-crazygames release/ratrace-crazygames.zip",
+    "preview:crazygames": "vite preview --outDir dist-crazygames"
   },
   "dependencies": {
+    "@fontsource/dm-mono": "^5.3.0",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

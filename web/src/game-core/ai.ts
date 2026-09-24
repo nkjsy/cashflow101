@@ -1,4 +1,4 @@
-import { FAST_TRACK_EXPANSION_GAIN, FAST_TRACK_EXPANSION_LIMIT, FAST_TRACK_GROWTH_UPGRADE_RATE, FAST_TRACK_REINVEST_LIMIT, FAST_TRACK_REINVEST_RATE, assetUpgradeCost, canTakeLoan, executeCommand, fastTrackExpansionCost, fastTrackReinvestCost, fastTrackSaleProceeds, fastTrackUpgradeCost, insuranceCost } from './engine'
+import { FAST_TRACK_EXPANSION_GAIN, FAST_TRACK_EXPANSION_LIMIT, FAST_TRACK_GROWTH_UPGRADE_RATE, FAST_TRACK_REINVEST_LIMIT, FAST_TRACK_REINVEST_RATE, assetUpgradeCost, canTakeLoan, executeCommand, fastTrackExpansionCost, fastTrackReinvestCost, fastTrackSaleProceeds, fastTrackUpgradeCost, insuranceCost, logEntry, logText } from './engine'
 import { BIG_DEALS } from './data'
 import { evaluateOpportunity, getAiPolicy, shouldBuyFastTrackBusiness } from './ai-policy'
 import type { GameCommand, GameState } from './types'
@@ -182,16 +182,18 @@ const explainAiDecision = (state: GameState) => {
     ? state.players.find((candidate) => candidate.id === decision.playerId)
     : state.players[state.currentPlayerIndex]
   const policy = player ? getAiPolicy(state, player) : null
-  const style = policy ? `采用${policy.personality === 'conservative' ? '保守' : policy.personality === 'aggressive' ? '进取' : '均衡'}策略` : '按当前策略'
-  if (!decision) return '按当前骰子权益推进回合，并在结束前优先偿还不影响现金储备的贷款。'
-  if (decision.type === 'deal-choice') return `${style}，先保留现金储备，再判断是否负担得起大买卖最低首付。`
-  if (decision.type === 'opportunity') return `${style}，综合回报率、现金储备和可持续借款；基金与存单不使用贷款。`
-  if (decision.type === 'market') return `${style}，报价达到成本时卖出，现金紧张时也会折价换取流动性。`
-  if (decision.type === 'charity') return `${style}，捐赠后仍达到目标现金储备才换取三回合双骰。`
-  if (decision.type === 'insolvency') return '先尝试可持续借款，再清算首付最高的资产，最后才宣布破产。'
-  if (decision.type === 'fast-track-business') return `${style}；专家会优先保留实现所选梦想所需的现金。`
-  if (decision.type === 'dream') return '现金足以支付所选梦想时立即实现，否则保留现金。'
-  return '根据现金储备处理当前选择。'
+  const style = logText(policy
+    ? policy.personality === 'conservative' ? '采用保守策略' : policy.personality === 'aggressive' ? '采用进取策略' : '采用均衡策略'
+    : '按当前策略')
+  if (!decision) return logText('按当前骰子权益推进回合，并在结束前优先偿还不影响现金储备的贷款。')
+  if (decision.type === 'deal-choice') return logText('{style}，先保留现金储备，再判断是否负担得起大买卖最低首付。', { style })
+  if (decision.type === 'opportunity') return logText('{style}，综合回报率、现金储备和可持续借款；基金与存单不使用贷款。', { style })
+  if (decision.type === 'market') return logText('{style}，报价达到成本时卖出，现金紧张时也会折价换取流动性。', { style })
+  if (decision.type === 'charity') return logText('{style}，捐赠后仍达到目标现金储备才换取三回合双骰。', { style })
+  if (decision.type === 'insolvency') return logText('先尝试可持续借款，再清算首付最高的资产，最后才宣布破产。')
+  if (decision.type === 'fast-track-business') return logText('{style}；专家会优先保留实现所选梦想所需的现金。', { style })
+  if (decision.type === 'dream') return logText('现金足以支付所选梦想时立即实现，否则保留现金。')
+  return logText('根据现金储备处理当前选择。')
 }
 
 export const playBasicAiTurn = (state: GameState): GameState => {
@@ -204,6 +206,6 @@ export const playBasicAiTurn = (state: GameState): GameState => {
   const id = (result.logs.at(-1)?.id ?? -1) + 1
   return {
     ...result,
-    logs: [...result.logs, { id, playerId: actor.id, message: `AI 判断：${reason}`, tone: 'neutral' as const }].slice(-40),
+    logs: [...result.logs, logEntry(id, actor.id, logText('AI 判断：{reason}', { reason }))].slice(-40),
   }
 }

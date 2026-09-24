@@ -1,6 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap');
 
-:root { font-family: 'Noto Sans SC', sans-serif; color: #17201d; background: #eef1ed; font-synthesis: none; text-rendering: optimizeLegibility; --ink:#17201d; --muted:#68736e; --paper:#fbfcf8; --line:#d9ded7; --green:#16664d; --green2:#1d8060; --green-soft:#e2f0e9; --yellow:#f2bd4d; --yellow-soft:#fff3d6; --red:#b74d3d; --red-soft:#f7e6e2; --blue:#39758d; --shadow:0 18px 50px rgb(27 48 39 / 10%); }
+:root { font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #17201d; background: #eef1ed; font-synthesis: none; text-rendering: optimizeLegibility; --ink:#17201d; --muted:#68736e; --paper:#fbfcf8; --line:#d9ded7; --green:#16664d; --green2:#1d8060; --green-soft:#e2f0e9; --yellow:#f2bd4d; --yellow-soft:#fff3d6; --red:#b74d3d; --red-soft:#f7e6e2; --blue:#39758d; --shadow:0 18px 50px rgb(27 48 39 / 10%); }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button { border: 0; cursor: pointer; font: inherit; }

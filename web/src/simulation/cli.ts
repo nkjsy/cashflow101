@@ -17,30 +17,31 @@ const baseSeed = readNumber('--seed', 1)
 const requestedAiCount = readNumber('--ai', 3)
 if (![1, 2, 3].includes(requestedAiCount)) throw new Error('--ai must be 1, 2, or 3')
 const aiCount = requestedAiCount as 1 | 2 | 3
+const pace = process.argv.includes('--pace') && process.argv[process.argv.indexOf('--pace') + 1] === 'quick' ? 'quick' : 'standard'
 
 const startedAt = performance.now()
 const report = aggregateSimulations(
   { games, maxRounds, baseSeed, aiCount },
-  (seed) => createGame(aiCount, seed),
+  (seed) => createGame(aiCount, seed, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pace),
 )
 const elapsed = performance.now() - startedAt
 
 console.log(`\n现金流批量模拟：${games.toLocaleString('zh-CN')} 局，${aiCount + 1} 名玩家`)
 console.log(`完成率：${(report.completionRate * 100).toFixed(1)}% (${report.completedGames}/${games})`)
 console.log(`完成局轮数：中位数 ${report.medianRounds ?? '-'}，P90 ${report.p90Rounds ?? '-'}`)
-console.log(`首次进入快车道：中位数 ${report.medianFirstFastTrackRound ?? '-'}，P90 ${report.p90FirstFastTrackRound ?? '-'}`)
-console.log(`胜者快车道停留：中位数 ${report.medianWinnerFastTrackRounds ?? '-'}，P90 ${report.p90WinnerFastTrackRounds ?? '-'}`)
-console.log(`进入快车道 1 轮内获胜：${(report.oneRoundFastTrackWinRate * 100).toFixed(1)}%`)
-console.log('快车道获胜途径（胜局 / 占比 / 快车道轮数中位数 / P90）：')
+console.log(`首次进入自由快道：中位数 ${report.medianFirstFastTrackRound ?? '-'}，P90 ${report.p90FirstFastTrackRound ?? '-'}`)
+console.log(`胜者自由快道停留：中位数 ${report.medianWinnerFastTrackRounds ?? '-'}，P90 ${report.p90WinnerFastTrackRounds ?? '-'}`)
+console.log(`进入自由快道 1 轮内获胜：${(report.oneRoundFastTrackWinRate * 100).toFixed(1)}%`)
+console.log('自由快道获胜途径（胜局 / 占比 / 自由快道轮数中位数 / P90）：')
 const winRouteLabels = { dream: '购买梦想', 'business-income': '购买企业达到收入目标', 'expansion-income': '扩张达到收入目标', 'business-upgrade': '企业升级达到收入目标', 'reinvestment-income': '再投资达到收入目标' } as const
 for (const [route, stats] of Object.entries(report.winRoutes)) {
   console.log(`  ${winRouteLabels[route as keyof typeof winRouteLabels]}：${stats.wins} / ${(stats.wins / report.completedGames * 100).toFixed(1)}% / ${stats.medianFastTrackRounds ?? '-'} / ${stats.p90FastTrackRounds ?? '-'}`)
 }
-console.log(`快车道新玩法触发量：${JSON.stringify(report.fastTrackActions)}`)
-console.log(`有玩家进入快车道的对局：${(report.gamesWithFastTrackEntryRate * 100).toFixed(1)}%`)
+console.log(`自由快道新玩法触发量：${JSON.stringify(report.fastTrackActions)}`)
+console.log(`有玩家进入自由快道的对局：${(report.gamesWithFastTrackEntryRate * 100).toFixed(1)}%`)
 console.log(`发生破产的对局：${(report.gamesWithBankruptcyRate * 100).toFixed(1)}%，平均每局 ${report.averageBankruptcies.toFixed(2)} 人`)
 console.log(`平均命令数：${report.averageCommands.toFixed(1)}`)
-console.log(`截止时仍在老鼠赛跑圈的玩家数：${report.cutoffRatRacePlayers}`)
+console.log(`截止时仍在打工圈的玩家数：${report.cutoffRatRacePlayers}`)
 console.log(`职业胜局：${JSON.stringify(report.professionWins)}`)
 console.log('职业平衡（胜率 95% Wilson 区间）：')
 for (const [profession, stats] of Object.entries(report.professionStats).sort(([, left], [, right]) => right.winRate - left.winRate)) {

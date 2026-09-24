@@ -70,6 +70,11 @@ export class GameAudio {
     }
   }
 
+  // Call from a user gesture: iOS leaves the context "interrupted" after backgrounding until then.
+  unlock() {
+    if (this.context && this.context.state !== 'running') void this.context.resume()
+  }
+
   private getContext() {
     if (this.context) return this.context
     if (typeof window === 'undefined') return null

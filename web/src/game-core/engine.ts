@@ -24,17 +24,33 @@ import type {
   FastTrackBusiness,
   FastTrackBalanceVersion,
   GameCommand,
+  GamePace,
   GameLogEntry,
   GameState,
   InsuranceKind,
   LongTermGoalId,
   MarketCard,
   MarketPricingVersion,
+  Opportunity,
   PlayerState,
   RatRaceBalanceVersion,
   StrategyRulesVersion,
   SpaceType,
 } from './types'
+import { renderText, type LocalText, type TextParam } from '../i18n/format'
+import type { LogKey } from '../i18n/log-en'
+
+export const logText = (key: LogKey, params?: Record<string, TextParam>): LocalText =>
+  params ? { key, params } : { key }
+const nm = (n: string) => ({ n })
+
+export const logEntry = (id: number, playerId: string, text: LocalText, tone: GameLogEntry['tone'] = 'neutral'): GameLogEntry => ({
+  id,
+  playerId,
+  message: renderText(text, 'zh', {}, {}),
+  text,
+  tone,
+})
 
 export const ECONOMIC_CYCLES = [
   { id: 'steady-growth', name: '稳定增长', description: '企业升级成本降低 10%。' },
@@ -149,6 +165,29 @@ const shuffle = <Item,>(items: readonly Item[], seed: number) => {
   return { items: shuffled, seed: nextSeed }
 }
 
+// Quick games use the same rules with a bigger starting cushion, richer deals and a smaller
+// Freedom Lane income target, finishing in roughly a third of the rounds. The savings cap keeps
+// high-savings professions from snowballing; values were tuned with `npm run simulate -- --pace quick`.
+export const QUICK_PACE = {
+  savingsMultiplier: 4.7,
+  savingsCap: 22000,
+  dealCashFlowMultiplier: 1.7,
+  fastTrackGoalGain: 25000,
+} as const
+
+export const STANDARD_FAST_TRACK_GOAL_GAIN = 50000
+
+export const fastTrackGoalGain = (player: PlayerState) =>
+  player.fastTrackGoalGain ?? STANDARD_FAST_TRACK_GOAL_GAIN
+
+export const fastTrackStartingIncome = (player: PlayerState) =>
+  player.fastTrackGoal - fastTrackGoalGain(player)
+
+export const pacedOpportunity = (opportunity: Opportunity, pace: GamePace = 'standard'): Opportunity =>
+  pace === 'quick' && opportunity.cashFlow > 0
+    ? { ...opportunity, cashFlow: Math.round(opportunity.cashFlow * QUICK_PACE.dealCashFlowMultiplier / 10) * 10 }
+    : opportunity
+
 export const childMonthlyExpenses = (player: PlayerState) =>
   player.profession === '护士' ? 0 : player.babies * player.perChildExpense
 
@@ -174,11 +213,15 @@ const createPlayer = (
   longTermGoal: LongTermGoalId,
   aiPersonality?: AiPersonality,
   ratRaceBalanceVersion: RatRaceBalanceVersion = 'global-v2',
+  pace: GamePace = 'standard',
 ): PlayerState => {
   const cashFlow = profession.salary - profession.expenses
-  const savings = ratRaceBalanceVersion === 'legacy'
+  const baseSavings = ratRaceBalanceVersion === 'legacy'
     ? legacyProfessionSavings(profession.title, profession.savings)
     : profession.savings
+  const savings = pace === 'quick'
+    ? Math.min(Math.round(baseSavings * QUICK_PACE.savingsMultiplier / 100) * 100, QUICK_PACE.savingsCap)
+    : baseSavings
   return {
     id: isHuman ? 'player-human' : `player-ai-${index}`,
     name: isHuman ? '你' : ['林晓', '周远', '陈禾'][index - 1],
@@ -232,6 +275,7 @@ export const createGame = (
   ratRaceBalanceVersion: RatRaceBalanceVersion = 'global-v2',
   strategyRulesVersion: StrategyRulesVersion = 'strategy-v1',
   humanLongTermGoal?: LongTermGoalId,
+  pace: GamePace = 'standard',
 ): GameState => {
   const professions = shuffle(PROFESSIONS, seed)
   const dreams = shuffle(DREAMS, professions.seed)
@@ -270,6 +314,7 @@ export const createGame = (
       fastTrackBalanceVersion,
       ratRaceBalanceVersion,
       strategyRulesVersion,
+      ...(pace === 'quick' ? { pace } : {}),
     },
     commandHistory: [],
     revision: 0,
@@ -288,6 +333,7 @@ export const createGame = (
           : longTermGoals[(longTermGoalOffset + index) % longTermGoals.length],
         index === 0 ? undefined : selectedPersonalities[index - 1],
         ratRaceBalanceVersion,
+        pace,
       ),
     ),
     pendingDecision: null,
@@ -305,12 +351,7 @@ export const createGame = (
     doodadIndex: 0,
     marketIndex: 0,
     logs: [
-      {
-        id: 0,
-        playerId: 'system',
-        message: `新游戏开始：职业、梦想、牌堆与起始玩家已随机生成。你将与 ${aiCount} 名 AI 对手竞争。`,
-        tone: 'neutral',
-      },
+      logEntry(0, 'system', logText('新游戏开始：职业、梦想、牌堆与起始玩家已随机生成。你将与 {count} 名 AI 对手竞争。', { count: aiCount })),
     ],
     winnerId: null,
     economicCycleIndex: 0,
@@ -320,13 +361,13 @@ export const createGame = (
 const appendLog = (
   state: GameState,
   playerId: string,
-  message: string,
+  text: LocalText,
   tone: GameLogEntry['tone'] = 'neutral',
 ) => ({
   ...state,
   logs: [
     ...state.logs,
-    { id: (state.logs.at(-1)?.id ?? -1) + 1, playerId, message, tone },
+    logEntry((state.logs.at(-1)?.id ?? -1) + 1, playerId, text, tone),
   ].slice(-40),
 })
 
@@ -347,7 +388,7 @@ const completeLongTermGoal = (state: GameState, playerId: string) => {
   if (!completed) return state
   const reward = player.profession === '教师' ? 5000 : 3000
   const nextState = updatePlayer(state, playerId, (current) => ({ ...current, cash: current.cash + reward, longTermGoalCompleted: true }))
-  return appendLog(nextState, playerId, `完成长期目标，获得 $${reward.toLocaleString('zh-CN')} 策略奖励。`, 'positive')
+  return appendLog(nextState, playerId, logText('完成长期目标，获得 ${reward} 策略奖励。', { reward }), 'positive')
 }
 
 const removeAssetOnce = (player: PlayerState, assetId: string) => {
@@ -370,7 +411,7 @@ const requireSolvency = (state: GameState, playerId: string, reason: string) => 
       turnStage: 'awaiting-decision',
     },
     playerId,
-    `现金缺口 $${Math.abs(player.cash).toLocaleString('zh-CN')}，需要借款、清算资产或宣布破产。`,
+    logText('现金缺口 ${amount}，需要借款、清算资产或宣布破产。', { amount: Math.abs(player.cash) }),
     'negative',
   )
 }
@@ -386,7 +427,7 @@ const settlePaydays = (state: GameState, playerId: string, from: number, steps: 
     nextState = appendLog(
       nextState,
       playerId,
-      `经过发薪日，${amount >= 0 ? '获得' : '支付'} $${Math.abs(amount).toLocaleString('zh-CN')}。`,
+      logText(amount >= 0 ? '经过发薪日，获得 ${amount}。' : '经过发薪日，支付 ${amount}。', { amount: Math.abs(amount) }),
       amount >= 0 ? 'positive' : 'negative',
     )
   }
@@ -443,7 +484,12 @@ const nextMarketDecision = (
       },
     },
     playerId,
-    `${card.name}：${asset.name} 报价 $${salePrice.toLocaleString('zh-CN')}${levelPremium > 0 ? `（L${asset.level} 等级增值 +$${levelPremium.toLocaleString('zh-CN')}）` : ''}。`,
+    logText('{card}：{asset} 报价 ${price}{premium}。', {
+      card: nm(card.name),
+      asset: nm(asset.name),
+      price: salePrice,
+      premium: levelPremium > 0 ? logText('（L{level} 等级增值 +${premium}）', { level: asset.level ?? 1, premium: levelPremium }) : '',
+    }),
   )
 }
 
@@ -470,14 +516,17 @@ const resolveMarket = (state: GameState, playerId: string): GameState => {
         }),
       })),
     }
-    return appendLog(nextState, playerId, `${card.name}：${affected > 0 ? card.description : '当前无人持有对应证券。'}`)
+    return appendLog(nextState, playerId, logText('{card}：{detail}', {
+      card: nm(card.name),
+      detail: affected > 0 ? nm(card.description) : logText('当前无人持有对应证券。'),
+    }))
   }
 
   const triggerIndex = nextState.players.findIndex((candidate) => candidate.id === playerId)
   const eligiblePlayers = Array.from({ length: nextState.players.length }, (_, offset) =>
     nextState.players[(triggerIndex + offset) % nextState.players.length],
   ).filter((candidate) => !candidate.bankrupt && candidate.assets.some((asset) => matchesMarketCard(card, asset)))
-  if (eligiblePlayers.length === 0) return appendLog(nextState, playerId, `${card.name}：当前无人持有符合报价的资产。`)
+  if (eligiblePlayers.length === 0) return appendLog(nextState, playerId, logText('{card}：当前无人持有符合报价的资产。', { card: nm(card.name) }))
   return nextMarketDecision(nextState, card, eligiblePlayers.map((player) => player.id))
 }
 
@@ -490,7 +539,7 @@ const resolveLanding = (state: GameState, playerId: string, space: SpaceType): G
         pendingDecision: { type: 'deal-choice', playerId },
       },
       playerId,
-      '抵达投资机会：选择小生意或大买卖牌堆。',
+      logText('抵达投资机会：选择小生意或大买卖牌堆。'),
     )
   }
   if (space === 'charity') {
@@ -498,7 +547,7 @@ const resolveLanding = (state: GameState, playerId: string, space: SpaceType): G
     return appendLog(
       { ...state, pendingDecision: { type: 'charity', playerId, donation } },
       playerId,
-      `可以捐赠 $${donation.toLocaleString('zh-CN')}，换取 3 回合双骰选择。`,
+      logText('可以捐赠 ${donation}，换取 3 回合双骰选择。', { donation }),
     )
   }
   if (space === 'doodad') {
@@ -523,7 +572,13 @@ const resolveLanding = (state: GameState, playerId: string, space: SpaceType): G
     return appendLog(
       { ...nextState, doodadIndex: (state.doodadIndex ?? 0) + 1 },
       playerId,
-      `${card.name}：${card.description}${cost > 0 ? ` 支付 $${cost.toLocaleString('zh-CN')}${careSavings > 0 ? `，生活照护节省 $${careSavings.toLocaleString('zh-CN')}` : ''}。` : ' 当前无需支付。'}`,
+      logText('{card}：{description}{payment}', {
+        card: nm(card.name),
+        description: nm(card.description),
+        payment: cost > 0
+          ? logText(' 支付 ${cost}{care}。', { cost, care: careSavings > 0 ? logText('，生活照护节省 ${savings}', { savings: careSavings }) : '' })
+          : logText(' 当前无需支付。'),
+      }),
       cost > 0 ? 'negative' : 'neutral',
     )
   }
@@ -537,9 +592,9 @@ const resolveLanding = (state: GameState, playerId: string, space: SpaceType): G
     return appendLog(
       nextState,
       playerId,
-      player.profession === '护士'
+      logText(player.profession === '护士'
         ? '家庭新增成员，护理经验使儿童月支出不增加。'
-        : '家庭新增成员，每月支出上升。',
+        : '家庭新增成员，每月支出上升。'),
       player.profession === '护士' ? 'positive' : 'negative',
     )
   }
@@ -557,7 +612,11 @@ const resolveLanding = (state: GameState, playerId: string, space: SpaceType): G
     return appendLog(
       nextState,
       playerId,
-      `进入失业期：${insured ? `保险承担 ${Math.round(insuranceCoverageRate(player, 'job-loss') * 100)}%，` : ''}支付 $${cost.toLocaleString('zh-CN')}，并跳过 ${skippedTurns} 回合。`,
+      logText('进入失业期：{insurance}支付 ${cost}，并跳过 {turns} 回合。', {
+        insurance: insured ? logText('保险承担 {rate}%，', { rate: Math.round(insuranceCoverageRate(player, 'job-loss') * 100) }) : '',
+        cost,
+        turns: skippedTurns,
+      }),
       'negative',
     )
   }
@@ -585,7 +644,7 @@ const settleFastTrackCashflowDays = (
     nextState = appendLog(
       nextState,
       playerId,
-      `经过快车道现金流日，获得 $${player.fastTrackIncome.toLocaleString('zh-CN')}。`,
+      logText('经过自由快道收益日，获得 ${amount}。', { amount: player.fastTrackIncome }),
       'positive',
     )
   }
@@ -598,13 +657,13 @@ const resolvePreparedDreamPass = (state: GameState, playerId: string, from: numb
   for (let step = 1; step <= steps; step += 1) {
     const position = (from + step) % FAST_TRACK_BOARD.length
     if (FAST_TRACK_DREAM_BY_POSITION[position] !== player.dream) continue
-    const startingIncome = player.fastTrackGoal - 50000
+    const startingIncome = fastTrackStartingIncome(player)
     const cost = state.setup.fastTrackBalanceVersion === 'accelerated'
       ? fastTrackDreamCost(player.dream, startingIncome)
       : state.setup.fastTrackBalanceVersion === 'income-scaled'
         ? fastTrackDreamCost(player.dream, startingIncome, 24)
         : FAST_TRACK_DREAM_COSTS[player.dream]
-    return appendLog({ ...state, pendingDecision: { type: 'dream', playerId, dream: player.dream, cost } }, playerId, `梦想准备完成，经过“${player.dream}”时可以实现梦想。`, 'positive')
+    return appendLog({ ...state, pendingDecision: { type: 'dream', playerId, dream: player.dream, cost } }, playerId, logText('梦想准备完成，经过“{dream}”时可以实现梦想。', { dream: nm(player.dream) }), 'positive')
   }
   return state
 }
@@ -616,7 +675,7 @@ const resolveFastTrackLanding = (state: GameState, playerId: string): GameState 
     return appendLog(
       state,
       playerId,
-      `首次体验快车道，本回合暂不开放${space === 'business' ? '企业投资' : '梦想购买'}。`,
+      logText(space === 'business' ? '首次体验自由快道，本回合暂不开放企业投资。' : '首次体验自由快道，本回合暂不开放梦想购买。'),
     )
   }
   if (space === 'business') {
@@ -637,13 +696,13 @@ const resolveFastTrackLanding = (state: GameState, playerId: string): GameState 
         pendingDecision: { type: 'fast-track-business', playerId, business: offeredBusiness },
       },
       playerId,
-      `发现快车道企业：${offeredBusiness.name}。`,
+      logText('发现自由快道企业：{business}。', { business: nm(offeredBusiness.name) }),
     )
   }
   if (space === 'dream') {
     const dream = FAST_TRACK_DREAM_BY_POSITION[player.position]
     if (dream !== player.dream) {
-      return appendLog(state, playerId, `抵达梦想格“${dream}”，但这不是你选择的梦想。`)
+      return appendLog(state, playerId, logText('抵达梦想格“{dream}”，但这不是你选择的梦想。', { dream: nm(dream) }))
     }
     return appendLog(
       {
@@ -653,14 +712,14 @@ const resolveFastTrackLanding = (state: GameState, playerId: string): GameState 
           playerId,
           dream,
           cost: state.setup.fastTrackBalanceVersion === 'accelerated'
-            ? fastTrackDreamCost(dream, player.fastTrackGoal - 50000)
+            ? fastTrackDreamCost(dream, fastTrackStartingIncome(player))
             : state.setup.fastTrackBalanceVersion === 'income-scaled'
-              ? fastTrackDreamCost(dream, player.fastTrackGoal - 50000, 24)
+              ? fastTrackDreamCost(dream, fastTrackStartingIncome(player), 24)
               : FAST_TRACK_DREAM_COSTS[dream],
         },
       },
       playerId,
-      `抵达你的梦想格：${dream}。`,
+      logText('抵达你的梦想格：{dream}。', { dream: nm(dream) }),
     )
   }
   if (space === 'risk') {
@@ -686,7 +745,13 @@ const resolveFastTrackLanding = (state: GameState, playerId: string): GameState 
     return appendLog(
       { ...nextState, fastTrackRiskIndex: (state.fastTrackRiskIndex ?? 0) + 1 },
       playerId,
-      `${risk.name}：${resilienceRate > 0 ? `韧性化减免 ${Math.round(resilienceRate * 100)}%；` : ''}${covered ? `保险承担 ${Math.round(coverageRate * 100)}%；` : risk.description}${risk.effect === 'income-percent' ? ' 现金流日收入' : ' 现金'}减少 $${loss.toLocaleString('zh-CN')}。`,
+      logText('{risk}：{resilience}{coverage}{target}减少 ${loss}。', {
+        risk: nm(risk.name),
+        resilience: resilienceRate > 0 ? logText('韧性化减免 {rate}%；', { rate: Math.round(resilienceRate * 100) }) : '',
+        coverage: covered ? logText('保险承担 {rate}%；', { rate: Math.round(coverageRate * 100) }) : nm(risk.description),
+        target: logText(risk.effect === 'income-percent' ? ' 收益日收入' : ' 现金'),
+        loss,
+      }),
       'negative',
     )
   }
@@ -699,18 +764,22 @@ const checkFastTrack = (state: GameState, playerId: string) => {
   const roundedPassiveIncome = Math.round(player.passiveIncome / 1000) * 1000
   const fastTrackIncome = roundedPassiveIncome * 100
   const jobLossInsuranceEnded = player.insurance === 'job-loss'
+  const quick = state.setup.pace === 'quick'
   const nextState = updatePlayer(state, playerId, (current) => ({
     ...current,
     phase: 'fast-track',
     fastTrackIncome,
-    fastTrackGoal: fastTrackIncome + 50000,
+    fastTrackGoal: fastTrackIncome + (quick ? QUICK_PACE.fastTrackGoalGain : STANDARD_FAST_TRACK_GOAL_GAIN),
+    ...(quick ? { fastTrackGoalGain: QUICK_PACE.fastTrackGoalGain } : {}),
     position: 0,
     insurance: jobLossInsuranceEnded ? undefined : current.insurance,
   }))
   return appendLog(
     nextState,
     playerId,
-    `被动收入超过总支出，进入快车道！${jobLossInsuranceEnded ? ' 快车道没有失业事件，失业保险自动终止。' : ''}`,
+    logText('被动收入超过总支出，进入自由快道！{note}', {
+      note: jobLossInsuranceEnded ? logText(' 自由快道没有失业事件，失业保险自动终止。') : '',
+    }),
     'positive',
   )
 }
@@ -755,7 +824,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
         player.phase === 'fast-track' ? (player.fastTrackTurns ?? 0) + 1 : player.fastTrackTurns,
       charityTurns: Math.max(0, player.charityTurns - (player.charityTurns > 0 ? 1 : 0)),
     }))
-    nextState = appendLog(nextState, currentPlayer.id, `掷出 ${values.join(' + ')}，前进 ${steps} 格。`)
+    nextState = appendLog(nextState, currentPlayer.id, logText('掷出 {dice}，前进 {steps} 格。', { dice: values.join(' + '), steps }))
     if (currentPlayer.phase === 'fast-track') {
       nextState = settleFastTrackCashflowDays(nextState, currentPlayer.id, from, steps)
       if (!nextState.winnerId) nextState = resolvePreparedDreamPass(nextState, currentPlayer.id, from, steps)
@@ -784,7 +853,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
       : (state.bigDealDeck?.length ? state.bigDealDeck : cards.map((card) => card.id))
     const index = isSmall ? (state.smallDealIndex ?? 0) : (state.bigDealIndex ?? 0)
     const cardId = deck[index % deck.length]
-    const opportunity = cards.find((card) => card.id === cardId) ?? cards[0]
+    const opportunity = pacedOpportunity(cards.find((card) => card.id === cardId) ?? cards[0], state.setup.pace)
     const nextState: GameState = {
       ...state,
       pendingDecision: { type: 'opportunity', playerId: actor.id, opportunity },
@@ -794,7 +863,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     }
     return {
       ok: true,
-      state: finish(appendLog(nextState, actor.id, `抽取${isSmall ? '小生意' : '大买卖'}：${opportunity.name}。`)),
+      state: finish(appendLog(nextState, actor.id, logText(isSmall ? '抽取小生意：{deal}。' : '抽取大买卖：{deal}。', { deal: nm(opportunity.name) }))),
     }
   }
 
@@ -824,12 +893,12 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     const totalIncomeGain = passiveIncomeAfter - passiveIncomeBefore
     const portfolioIncomeGain = totalIncomeGain - decision.opportunity.cashFlow
     const incomeMessage = portfolioIncomeGain > 0
-      ? `被动收入实际 +$${totalIncomeGain.toLocaleString('zh-CN')}/月（资产本身 +$${decision.opportunity.cashFlow.toLocaleString('zh-CN')}，组合加成 +$${portfolioIncomeGain.toLocaleString('zh-CN')}）。`
-      : `被动收入 +$${decision.opportunity.cashFlow.toLocaleString('zh-CN')}/月。`
+      ? logText('被动收入实际 +${total}/月（资产本身 +${base}，组合加成 +${bonus}）。', { total: totalIncomeGain, base: decision.opportunity.cashFlow, bonus: portfolioIncomeGain })
+      : logText('被动收入 +${amount}/月。', { amount: decision.opportunity.cashFlow })
     nextState = appendLog(
       { ...nextState, pendingDecision: null, turnStage: 'awaiting-end' },
       currentPlayer.id,
-      `购买 ${decision.opportunity.name}，${incomeMessage}`,
+      logText('购买 {asset}，{income}', { asset: nm(decision.opportunity.name), income: incomeMessage }),
       'positive',
     )
     nextState = completeLongTermGoal(nextState, currentPlayer.id)
@@ -847,7 +916,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
         appendLog(
           { ...state, pendingDecision: null, turnStage: 'awaiting-end' },
           currentPlayer.id,
-          '放弃了这次投资机会。',
+          logText('放弃了这次投资机会。'),
         ),
       ),
     }
@@ -873,7 +942,9 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     nextState = appendLog(
       nextState,
       currentPlayer.id,
-      command.donate ? `完成慈善捐赠，未来 ${currentPlayer.profession === '警员' ? 4 : 3} 回合可以使用双骰。` : '放弃了慈善捐赠。',
+      command.donate
+        ? logText('完成慈善捐赠，未来 {turns} 回合可以使用双骰。', { turns: currentPlayer.profession === '警员' ? 4 : 3 })
+        : logText('放弃了慈善捐赠。'),
       command.donate ? 'positive' : 'neutral',
     )
     return { ok: true, state: finish(nextState) }
@@ -898,7 +969,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     return {
       ok: true,
       state: finish(
-        appendLog(nextState, actor.id, `银行借款 $${command.amount.toLocaleString('zh-CN')}。`, 'negative'),
+        appendLog(nextState, actor.id, logText('银行借款 ${amount}。', { amount: command.amount }), 'negative'),
       ),
     }
   }
@@ -921,7 +992,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
       cash: player.cash - command.amount,
       bankLoan: player.bankLoan - command.amount,
     }))
-    nextState = appendLog(nextState, actor.id, `偿还银行贷款 $${command.amount.toLocaleString('zh-CN')}。`, 'positive')
+    nextState = appendLog(nextState, actor.id, logText('偿还银行贷款 ${amount}。', { amount: command.amount }), 'positive')
     nextState = checkFastTrack(nextState, actor.id)
     return { ok: true, state: finish(nextState) }
   }
@@ -963,7 +1034,13 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     nextState = appendLog(
       { ...nextState, turnStage: nextState.pendingDecision ? 'awaiting-decision' : 'awaiting-end' },
       actor.id,
-      `按市场报价出售 ${decision.assetName}${negotiationBonus > 0 ? `，合同谈判增加成交价 $${negotiationBonus.toLocaleString('zh-CN')}` : ''}；成交款先扣除该资产抵押 $${asset.mortgage.toLocaleString('zh-CN')}，银行贷款不变，净收入 $${netProceeds.toLocaleString('zh-CN')}，${realizedProfit >= 0 ? '盈利' : '亏损'} $${Math.abs(realizedProfit).toLocaleString('zh-CN')}。`,
+      logText('按市场报价出售 {asset}{negotiation}；成交款先扣除该资产抵押 ${mortgage}，银行贷款不变，净收入 ${net}，{result}。', {
+        asset: nm(decision.assetName),
+        negotiation: negotiationBonus > 0 ? logText('，合同谈判增加成交价 ${bonus}', { bonus: negotiationBonus }) : '',
+        mortgage: asset.mortgage,
+        net: netProceeds,
+        result: logText(realizedProfit >= 0 ? '盈利 ${amount}' : '亏损 ${amount}', { amount: Math.abs(realizedProfit) }),
+      }),
       realizedProfit >= 0 ? 'positive' : 'negative',
     )
     return { ok: true, state: finish(nextState) }
@@ -981,7 +1058,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     const nextState = nextMarketDecision(state, card, decision.responderIds.slice(1))
     return {
       ok: true,
-      state: finish(appendLog({ ...nextState, turnStage: nextState.pendingDecision ? 'awaiting-decision' : 'awaiting-end' }, actor.id, '放弃市场收购报价。')),
+      state: finish(appendLog({ ...nextState, turnStage: nextState.pendingDecision ? 'awaiting-decision' : 'awaiting-end' }, actor.id, logText('放弃市场收购报价。'))),
     }
   }
 
@@ -998,7 +1075,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
       return { ...withoutAsset, cash: withoutAsset.cash + recovery }
     })
     const updatedActor = nextState.players.find((player) => player.id === actor.id)!
-    nextState = appendLog(nextState, actor.id, `清算 ${asset.name}，回收 $${recovery.toLocaleString('zh-CN')}。`, 'negative')
+    nextState = appendLog(nextState, actor.id, logText('清算 {asset}，回收 ${amount}。', { asset: nm(asset.name), amount: recovery }), 'negative')
     if (updatedActor.cash >= 0) nextState = { ...nextState, pendingDecision: null, turnStage: 'awaiting-end' }
     return { ok: true, state: finish(nextState) }
   }
@@ -1013,7 +1090,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     nextState = appendLog(
       { ...nextState, pendingDecision: null, turnStage: 'awaiting-end', winnerId: remainingPlayers.length === 1 ? remainingPlayers[0].id : null },
       actor.id,
-      '无法完成强制付款，宣布破产并退出游戏。',
+      logText('无法完成强制付款，宣布破产并退出游戏。'),
       'negative',
     )
     return { ok: true, state: finish(nextState) }
@@ -1050,7 +1127,12 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     nextState = appendLog(
       { ...nextState, pendingDecision: null, turnStage: 'awaiting-end', winnerId: won ? actor.id : state.winnerId },
       actor.id,
-      `购买 ${decision.business.name}，现金流日收入 +$${incomeGain.toLocaleString('zh-CN')}${synergy > 0 ? `（含多产业协同 $${synergy.toLocaleString('zh-CN')}）` : ''}${won ? '，达成收入目标并获胜！' : '。'}`,
+      logText('购买 {business}，收益日收入 +${gain}{synergy}{ending}', {
+        business: nm(decision.business.name),
+        gain: incomeGain,
+        synergy: synergy > 0 ? logText('（含多产业协同 ${amount}）', { amount: synergy }) : '',
+        ending: logText(won ? '，达成收入目标并获胜！' : '。'),
+      }),
       'positive',
     )
     return { ok: true, state: finish(nextState) }
@@ -1074,7 +1156,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     nextState = appendLog(
       { ...nextState, pendingDecision: null, turnStage: 'awaiting-end', winnerId: actor.id },
       actor.id,
-      `实现梦想“${decision.dream}”，赢得游戏！`,
+      logText('实现梦想“{dream}”，赢得游戏！', { dream: nm(decision.dream) }),
       'positive',
     )
     return { ok: true, state: finish(nextState) }
@@ -1096,7 +1178,13 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     const income = actor.fastTrackIncome + FAST_TRACK_EXPANSION_GAIN
     const won = reachesFastTrackIncomeVictory(state, actor, income)
     const nextState = updatePlayer(state, actor.id, (player) => ({ ...player, cash: player.cash - cost, fastTrackIncome: income, fastTrackExpansions: (player.fastTrackExpansions ?? 0) + 1, fastTrackStrategyUsed: true, phase: won ? 'finished' : player.phase }))
-    return { ok: true, state: finish(appendLog({ ...nextState, winnerId: won ? actor.id : state.winnerId }, actor.id, `扩张现有企业（${(actor.fastTrackExpansions ?? 0) + 1}/${FAST_TRACK_EXPANSION_LIMIT}），支付 $${cost.toLocaleString('zh-CN')}，现金流日收入 +$${FAST_TRACK_EXPANSION_GAIN.toLocaleString('zh-CN')}${won ? '，达成收入目标！' : '。'}`, 'positive')) }
+    return { ok: true, state: finish(appendLog({ ...nextState, winnerId: won ? actor.id : state.winnerId }, actor.id, logText('扩张现有企业（{count}/{limit}），支付 ${cost}，收益日收入 +${gain}{ending}', {
+      count: (actor.fastTrackExpansions ?? 0) + 1,
+      limit: FAST_TRACK_EXPANSION_LIMIT,
+      cost,
+      gain: FAST_TRACK_EXPANSION_GAIN,
+      ending: logText(won ? '，达成收入目标！' : '。'),
+    }), 'positive')) }
   }
 
   if (command.type === 'FAST_TRACK_UPGRADE_BUSINESS') {
@@ -1123,7 +1211,13 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     return { ok: true, state: finish(appendLog(
       { ...nextState, winnerId: won ? actor.id : state.winnerId },
       actor.id,
-      `将“${business.name}”升级为${command.branch === 'growth' ? `规模化，支付 $${cost.toLocaleString('zh-CN')}，企业收入提高 50%（+$${growthGain.toLocaleString('zh-CN')}）` : `韧性化，支付 $${cost.toLocaleString('zh-CN')}，所有快车道风险损失降低 25%`}${won ? '，达成收入目标！' : '。'}`,
+      logText('将“{business}”升级为{detail}{ending}', {
+        business: nm(business.name),
+        detail: command.branch === 'growth'
+          ? logText('规模化，支付 ${cost}，企业收入提高 50%（+${gain}）', { cost, gain: growthGain })
+          : logText('韧性化，支付 ${cost}，所有自由快道风险损失降低 25%', { cost }),
+        ending: logText(won ? '，达成收入目标！' : '。'),
+      }),
       'positive',
     )) }
   }
@@ -1154,7 +1248,12 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     return { ok: true, state: finish(appendLog(
       { ...nextState, winnerId: won ? actor.id : state.winnerId },
       actor.id,
-      `再投资“${business.name}”：支付 $${cost.toLocaleString('zh-CN')}，企业收入提高 25%（+$${incomeGain.toLocaleString('zh-CN')}）${won ? '，达成收入目标！' : '。'}`,
+      logText('再投资“{business}”：支付 ${cost}，企业收入提高 25%（+${gain}）{ending}', {
+        business: nm(business.name),
+        cost,
+        gain: incomeGain,
+        ending: logText(won ? '，达成收入目标！' : '。'),
+      }),
       'positive',
     )) }
   }
@@ -1177,7 +1276,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     return { ok: true, state: finish(appendLog(
       nextState,
       actor.id,
-      `出售“${business.name}”，回收 $${proceeds.toLocaleString('zh-CN')}，移除该企业及其现金流。`,
+      logText('出售“{business}”，回收 ${amount}，移除该企业及其现金流。', { business: nm(business.name), amount: proceeds }),
       'neutral',
     )) }
   }
@@ -1190,7 +1289,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     if (actor.cash < cost) return { ok: false, state, error: 'INSUFFICIENT_CASH' }
     const insurance = command.insurance ?? 'maintenance'
     const nextState = updatePlayer(state, actor.id, (player) => ({ ...player, cash: player.cash - cost, insurance, fastTrackStrategyUsed: true }))
-    return { ok: true, state: finish(appendLog(nextState, actor.id, `投入 $25,000 管理经营风险，获得${insurance === 'maintenance' ? '维护' : '诉讼'}保险。`)) }
+    return { ok: true, state: finish(appendLog(nextState, actor.id, logText(insurance === 'maintenance' ? '投入 $25,000 管理经营风险，获得维护保险。' : '投入 $25,000 管理经营风险，获得诉讼保险。'))) }
   }
 
   if (command.type === 'FAST_TRACK_PREPARE_DREAM') {
@@ -1202,8 +1301,8 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     const preparation = (actor.dreamPreparation ?? 0) + 1
     const nextState = updatePlayer(state, actor.id, (player) => ({ ...player, cash: player.cash - cost, dreamPreparation: preparation, fastTrackStrategyUsed: true }))
     const message = preparation === 3
-      ? `梦想准备达到 3/3，支付 $50,000。尚未获胜；以后移动经过自己的梦想格时，可以支付梦想价格实现梦想。`
-      : `推进梦想准备至 ${preparation}/3，支付 $50,000。`
+      ? logText('梦想准备达到 3/3，支付 $50,000。尚未获胜；以后移动经过自己的梦想格时，可以支付梦想价格实现梦想。')
+      : logText('推进梦想准备至 {level}/3，支付 $50,000。', { level: preparation })
     return { ok: true, state: finish(appendLog(nextState, actor.id, message, 'positive')) }
   }
 
@@ -1234,7 +1333,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
         ...recalculateAssets(player, assets),
       }
     })
-    nextState = completeLongTermGoal(appendLog(nextState, actor.id, `升级 ${asset.name} 至 ${((asset.level ?? 1) + 1)} 级，支付 $${cost.toLocaleString('zh-CN')}。`, 'positive'), actor.id)
+    nextState = completeLongTermGoal(appendLog(nextState, actor.id, logText('升级 {asset} 至 {level} 级，支付 ${cost}。', { asset: nm(asset.name), level: (asset.level ?? 1) + 1, cost }), 'positive'), actor.id)
     nextState = checkFastTrack(nextState, actor.id)
     return { ok: true, state: finish(nextState) }
   }
@@ -1246,7 +1345,10 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     const cost = insuranceCost(actor, command.insurance)
     if (actor.cash < cost) return { ok: false, state, error: 'INSUFFICIENT_CASH' }
     const nextState = updatePlayer(state, actor.id, (player) => ({ ...player, cash: player.cash - cost, insurance: command.insurance, strategyActionUsed: true }))
-    return { ok: true, state: finish(appendLog(nextState, actor.id, `购买${command.insurance === 'job-loss' ? '失业' : command.insurance === 'maintenance' ? '维护' : '诉讼'}保险，支付 $${cost.toLocaleString('zh-CN')}。`)) }
+    return { ok: true, state: finish(appendLog(nextState, actor.id, logText(
+      command.insurance === 'job-loss' ? '购买失业保险，支付 ${cost}。' : command.insurance === 'maintenance' ? '购买维护保险，支付 ${cost}。' : '购买诉讼保险，支付 ${cost}。',
+      { cost },
+    ))) }
   }
 
   if (command.type === 'FINANCIAL_REVIEW') {
@@ -1260,8 +1362,8 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     let nextState = updatePlayer(state, actor.id, (player) => ({ ...player, cash: player.cash - payment, bankLoan: player.bankLoan - payment - relief, strategyActionUsed: true }))
     nextState = completeLongTermGoal(nextState, actor.id)
     const message = relief > 0
-      ? `财务整理偿还 $${payment.toLocaleString('zh-CN')}，额外减免 $${relief.toLocaleString('zh-CN')}。`
-      : `财务整理偿还 $${payment.toLocaleString('zh-CN')}，贷款已结清，无剩余贷款可额外减免。`
+      ? logText('财务整理偿还 ${payment}，额外减免 ${relief}。', { payment, relief })
+      : logText('财务整理偿还 ${payment}，贷款已结清，无剩余贷款可额外减免。', { payment })
     return { ok: true, state: finish(appendLog(nextState, actor.id, message, 'positive')) }
   }
 
@@ -1280,7 +1382,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
           ...player,
           skippedTurns: player.skippedTurns - 1,
         }))
-        nextState = appendLog(nextState, candidate.id, '处于失业期，跳过本回合。', 'negative')
+        nextState = appendLog(nextState, candidate.id, logText('处于失业期，跳过本回合。'), 'negative')
         continue
       }
       foundNextPlayer = !candidate.bankrupt
@@ -1328,6 +1430,7 @@ export const replayGame = (game: GameState): GameState => {
     setup.ratRaceBalanceVersion ?? 'legacy',
     setup.strategyRulesVersion ?? 'legacy',
     setup.longTermGoal,
+    setup.pace,
   )
   for (const command of game.commandHistory ?? []) {
     const result = executeCommandInternal(replayed, command)

@@ -1,5 +1,5 @@
 import { FAST_TRACK_DREAM_COSTS, fastTrackDreamCost } from './data'
-import { totalExpenses } from './engine'
+import { fastTrackStartingIncome, totalExpenses } from './engine'
 import type { GameState, Opportunity, PlayerState } from './types'
 
 const personalitySettings = {
@@ -34,9 +34,9 @@ export const getAiPolicy = (state: GameState, player: PlayerState) => {
     distressCash: totalExpenses(player) * settings.distressRatio,
     charityReserve: Math.max(1000, totalExpenses(player) * reserveMonths),
     dreamCost: state.setup.fastTrackBalanceVersion === 'accelerated'
-      ? fastTrackDreamCost(player.dream, player.fastTrackGoal - 50000)
+      ? fastTrackDreamCost(player.dream, fastTrackStartingIncome(player))
       : state.setup.fastTrackBalanceVersion === 'income-scaled'
-        ? fastTrackDreamCost(player.dream, player.fastTrackGoal - 50000, 24)
+        ? fastTrackDreamCost(player.dream, fastTrackStartingIncome(player), 24)
         : FAST_TRACK_DREAM_COSTS[player.dream] ?? 250000,
   }
 }

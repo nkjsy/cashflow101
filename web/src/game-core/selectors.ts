@@ -1,5 +1,6 @@
-import { freedomProgress, totalExpenses } from './engine'
+import { fastTrackGoalGain, fastTrackStartingIncome, freedomProgress, totalExpenses } from './engine'
 import type { Asset, PlayerState } from './types'
+import { renderText, type LocalText } from '../i18n/format'
 
 export type FinalScoreDimension = {
   id: 'progress' | 'cashflow' | 'portfolio' | 'resilience' | 'achievement'
@@ -47,20 +48,22 @@ export const groupAssets = (assets: Asset[]): GroupedAsset[] => {
   return [...grouped.values()]
 }
 
-export const playerStatus = (player: PlayerState) => {
-  if (player.bankrupt) return '破产'
-  if (player.skippedTurns > 0) return `失业中 · 剩余 ${player.skippedTurns} 回合`
-  if (player.charityTurns > 0) return `慈善双骰 · 剩余 ${player.charityTurns} 回合`
-  return '正常'
+export const playerStatusText = (player: PlayerState): LocalText => {
+  if (player.bankrupt) return { key: '破产' }
+  if (player.skippedTurns > 0) return { key: '失业中 · 剩余 {turns} 回合', params: { turns: player.skippedTurns } }
+  if (player.charityTurns > 0) return { key: '慈善双骰 · 剩余 {turns} 回合', params: { turns: player.charityTurns } }
+  return { key: '正常' }
 }
+
+export const playerStatus = (player: PlayerState) => renderText(playerStatusText(player), 'zh', {}, {})
 
 export const playerProgress = (player: PlayerState) => {
   if (player.phase === 'finished') return 100
   if (player.phase === 'rat-race') return freedomProgress(player)
-  const startingIncome = player.fastTrackGoal - 50000
+  const startingIncome = fastTrackStartingIncome(player)
   return Math.max(
     0,
-    Math.min(100, Math.round(((player.fastTrackIncome - startingIncome) / 50000) * 100)),
+    Math.min(100, Math.round(((player.fastTrackIncome - startingIncome) / fastTrackGoalGain(player)) * 100)),
   )
 }
 
