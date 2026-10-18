@@ -17,7 +17,6 @@
     "preview:crazygames": "vite preview --outDir dist-crazygames"
   },
   "dependencies": {
-    "@fontsource/dm-mono": "^5.3.0",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

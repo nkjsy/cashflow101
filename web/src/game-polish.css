@@ -1248,3 +1248,383 @@
     gap: 1px;
   }
 }
+
+/* ===== Visual refresh ===== */
+
+/* Numbers used DM Mono, whose slashed zero makes prices read like "US$75Ø". The stylesheets still
+   name 'DM Mono', so alias it to the platform UI sans and line digits up with tabular figures. */
+@font-face {
+  font-family: 'DM Mono';
+  src: local('Segoe UI'), local('SegoeUI'), local('Helvetica Neue'), local('HelveticaNeue'), local('Roboto'), local('Noto Sans'), local('NotoSans-Regular'), local('Arial'), local('DejaVu Sans');
+  font-weight: 100 900;
+}
+
+body {
+  font-variant-numeric: tabular-nums;
+}
+
+:root {
+  --panel-radius: 14px;
+  --tile-radius: 8px;
+  --soft-shadow: 0 10px 30px rgb(23 49 39 / 9%);
+}
+
+/* Top bar: brand on the left, one progress block (summary, bar, detail) in the middle. */
+.progress-band .top-brand {
+  justify-content: flex-start !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-band .top-brand svg {
+  width: 22px;
+  height: 22px;
+  color: #f5cf73;
+}
+
+.progress-track {
+  height: 8px;
+  background: rgb(255 255 255 / 14%);
+  border-radius: 999px;
+}
+
+.progress-track i {
+  background: linear-gradient(90deg, #f0b93a, #f8d77f);
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgb(245 207 115 / 45%);
+  transition: width .6s ease;
+}
+
+@media (min-width: 1081px) {
+  body .game-shell > .progress-band {
+    height: 64px;
+    grid-template-columns: auto auto minmax(240px, 1fr) auto auto;
+    grid-template-rows: auto 8px auto;
+    grid-template-areas:
+      'brand toggle summary turn actions'
+      'brand toggle track turn actions'
+      'brand toggle detail turn actions';
+    align-content: center;
+    column-gap: 18px;
+    row-gap: 3px;
+    padding: 0 18px;
+  }
+
+  .progress-band > .top-brand { grid-area: brand; align-self: center; }
+  .progress-band > .top-track-toggle { grid-area: toggle; align-self: center; }
+  .progress-band > .progress-summary { grid-area: summary; min-width: 0; }
+  .progress-band > .progress-track { grid-area: track; }
+  .progress-band > .turn { grid-area: turn; align-self: center; }
+  .progress-band > .header-actions { grid-area: actions; align-self: center; }
+
+  .progress-band > .progress-summary span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .progress-band > p,
+  .progress-band > p.fast-track-context {
+    grid-area: detail;
+    display: block;
+    position: static;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: #b9cfc5;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .progress-band > p.fast-track-context {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+  }
+
+  .progress-band > p.fast-track-context .progress-dream {
+    padding: 0;
+    background: none;
+    color: #f5cf73;
+  }
+
+  .game-grid {
+    height: calc(100vh - 64px);
+  }
+}
+
+/* Play area and board: rounded, softly lifted, with a faint dot texture behind. */
+.play-area {
+  background:
+    radial-gradient(circle, rgb(22 102 77 / 7%) 1px, transparent 1.5px) 0 0 / 18px 18px,
+    radial-gradient(circle at 50% 40%, #f9faf6 0, #eef1ed 75%);
+}
+
+.track-panel {
+  border-radius: var(--panel-radius);
+  border-color: #cfe0d6;
+  box-shadow: var(--soft-shadow);
+}
+
+.board-space {
+  border-radius: var(--tile-radius);
+  box-shadow: 0 1px 2px rgb(23 32 29 / 6%);
+}
+
+@media (hover: hover) {
+  .board-space:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgb(23 32 29 / 12%);
+  }
+}
+
+.board-center {
+  border-radius: 12px;
+  background: radial-gradient(ellipse at 50% 45%, rgb(245 207 115 / 16%), transparent 70%);
+}
+
+.fast-panel .board-center {
+  background: radial-gradient(ellipse at 50% 45%, rgb(245 207 115 / 12%), transparent 70%);
+}
+
+.board-center .decision {
+  border-radius: 12px;
+  background: transparent;
+}
+
+.fast-panel .board-center .decision {
+  background: var(--paper);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 25%);
+}
+
+/* Strategy row: full-size pills under a small caption. */
+.strategy-label {
+  flex-basis: 100%;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.board-center .strategy-actions {
+  gap: 7px;
+}
+
+.board-center .strategy-actions button,
+.board-center .strategy-actions select {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.board-center .strategy-actions button {
+  padding: 0 13px;
+  color: var(--green);
+  background: white;
+  border: 1px solid #cfe0d6;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgb(23 32 29 / 6%);
+}
+
+.board-center .strategy-actions button:not(:disabled):hover {
+  background: var(--green-soft);
+}
+
+.board-center .strategy-actions button:disabled {
+  opacity: .45;
+  box-shadow: none;
+}
+
+.board-center .strategy-actions select {
+  max-width: 170px;
+  padding: 0 8px 0 12px;
+  border-color: #cfe0d6;
+  border-radius: 999px 0 0 999px;
+}
+
+.board-center .strategy-actions label button {
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+}
+
+.board-center .strategy-actions svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Readable minimum text size on desktop. */
+@media (min-width: 1081px) {
+  .board-space { font-size: 12px; }
+  .activity strong { font-size: 11px; }
+  .activity p { font-size: 12px; line-height: 1.55; }
+  .board-center .decision p { font-size: 12px; }
+  .board-center .decision small { font-size: 11px; }
+  .board-center .decision-copy h2 { font-size: 18px; }
+  .metrics span { font-size: 11px; }
+  .metrics strong { font-size: 14px; }
+  .opponent-metrics small { font-size: 10px; }
+  .opponent-metrics strong { font-size: 12px; }
+  .finance-panel dt, .finance-panel dd { font-size: 12px; }
+  .ticker-symbol small, .ticker-holding small { font-size: 11px; }
+}
+
+/* Floating deltas only on the player's main numbers; the ticker and opponents just flash. */
+.ticker .value-delta,
+.opponent-card .value-delta {
+  display: none;
+}
+
+/* Opponent cards: player colour accent and a thicker progress bar. */
+.opponent-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.opponent-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #39758d;
+}
+
+.opponent-cards .opponent-card:nth-child(2)::before { background: #b75a47; }
+.opponent-cards .opponent-card:nth-child(3)::before { background: #9a6c13; }
+
+.opponent-card .mini-progress {
+  height: 5px;
+  border-radius: 999px;
+}
+
+/* Gold primary calls to action on the start screen, matching the roll button. */
+.setup-footer .primary,
+.daily-card .primary {
+  color: #2b1f00;
+  background: linear-gradient(180deg, #f8d77f, var(--gold));
+  box-shadow: 0 4px 0 #a37a14, 0 10px 22px rgb(201 151 31 / 25%);
+}
+
+.setup-footer .primary:hover,
+.daily-card .primary:hover {
+  background: linear-gradient(180deg, #fbe09a, #d6a52b);
+}
+
+.setup-footer .primary:active,
+.daily-card .primary:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #a37a14;
+}
+
+/* Start screen hero decoration. */
+.setup-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 85% 20%, rgb(245 207 115 / 18%), transparent 45%),
+    linear-gradient(135deg, #174f3e, #12392e);
+}
+
+.hero-art {
+  position: absolute;
+  right: 260px;
+  top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: .9;
+  pointer-events: none;
+}
+
+.hero-coin {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  color: #5c4100;
+  background: radial-gradient(circle at 35% 30%, #fff1c4, #f0b93a 70%);
+  border: 2px solid #f8d77f;
+  border-radius: 50%;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+  font: 800 22px 'Segoe UI', system-ui, sans-serif;
+  animation: coin-bob 3.2s ease-in-out infinite;
+}
+
+.hero-art svg {
+  width: 120px;
+  height: 48px;
+}
+
+.hero-art polyline {
+  fill: none;
+  stroke: #f5cf73;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: chart-draw 1.6s ease-out .3s forwards;
+}
+
+@keyframes coin-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes chart-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (max-width: 900px) {
+  .hero-art { display: none; }
+}
+
+/* Confetti for reaching the Freedom Lane and winning. */
+/* Isolation keeps the confetti (z-index -1) above the dialog background but behind its content. */
+.fast-track-celebration,
+.game-over-dialog {
+  position: relative;
+  isolation: isolate;
+}
+
+.confetti {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.confetti i {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(.25, .6, .4, 1);
+  animation-fill-mode: forwards;
+}
+
+.confetti i:nth-child(3n) { width: 6px; height: 6px; border-radius: 50%; }
+.confetti i:nth-child(4n) { height: 16px; width: 5px; }
+
+@keyframes confetti-fall {
+  0% { opacity: 1; translate: 0 0; }
+  100% { opacity: 0; translate: 30px 420px; rotate: 540deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti,
+  .hero-coin,
+  .hero-art polyline {
+    animation: none;
+  }
+
+  .confetti { display: none; }
+  .hero-art polyline { stroke-dashoffset: 0; }
+  .board-space:hover { transform: none; }
+}
