@@ -189,6 +189,16 @@ export const QUICK_PACE = {
 
 export const STANDARD_FAST_TRACK_GOAL_GAIN = 50000
 
+// Living-economy quick games pay half a Revenue Day on arrival, which made the $25,000 target
+// reachable with a single business: the median winner needed only 3 rounds in the Freedom Lane.
+export const LIVING_QUICK_FAST_TRACK_GOAL_GAIN = 40000
+
+// The Freedom Lane income gain a new arrival needs under this game's setup.
+export const fastTrackGoalGainFor = (setup: Pick<GameState['setup'], 'pace' | 'economyRulesVersion'>) =>
+  setup.pace !== 'quick'
+    ? STANDARD_FAST_TRACK_GOAL_GAIN
+    : setup.economyRulesVersion === 'living-v1' ? LIVING_QUICK_FAST_TRACK_GOAL_GAIN : QUICK_PACE.fastTrackGoalGain
+
 export const fastTrackGoalGain = (player: PlayerState) =>
   player.fastTrackGoalGain ?? STANDARD_FAST_TRACK_GOAL_GAIN
 
@@ -748,18 +758,21 @@ const settleFastTrackCashflowDays = (
   return nextState
 }
 
+// What buying a dream costs this player under the game's Freedom Lane balance.
+export const dreamCostFor = (state: GameState, player: PlayerState, dream = player.dream) =>
+  state.setup.fastTrackBalanceVersion === 'accelerated'
+    ? fastTrackDreamCost(dream, fastTrackStartingIncome(player))
+    : state.setup.fastTrackBalanceVersion === 'income-scaled'
+      ? fastTrackDreamCost(dream, fastTrackStartingIncome(player), 24)
+      : FAST_TRACK_DREAM_COSTS[dream]
+
 const resolvePreparedDreamPass = (state: GameState, playerId: string, from: number, steps: number) => {
   const player = state.players.find((candidate) => candidate.id === playerId)!
   if ((player.dreamPreparation ?? 0) < 3) return state
   for (let step = 1; step <= steps; step += 1) {
     const position = (from + step) % FAST_TRACK_BOARD.length
     if (FAST_TRACK_DREAM_BY_POSITION[position] !== player.dream) continue
-    const startingIncome = fastTrackStartingIncome(player)
-    const cost = state.setup.fastTrackBalanceVersion === 'accelerated'
-      ? fastTrackDreamCost(player.dream, startingIncome)
-      : state.setup.fastTrackBalanceVersion === 'income-scaled'
-        ? fastTrackDreamCost(player.dream, startingIncome, 24)
-        : FAST_TRACK_DREAM_COSTS[player.dream]
+    const cost = dreamCostFor(state, player)
     return appendLog({ ...state, pendingDecision: { type: 'dream', playerId, dream: player.dream, cost } }, playerId, logText('梦想准备完成，经过“{dream}”时可以实现梦想。', { dream: nm(player.dream) }), 'positive')
   }
   return state
@@ -818,11 +831,7 @@ const resolveFastTrackLanding = (state: GameState, playerId: string): GameState 
           type: 'dream',
           playerId,
           dream,
-          cost: state.setup.fastTrackBalanceVersion === 'accelerated'
-            ? fastTrackDreamCost(dream, fastTrackStartingIncome(player))
-            : state.setup.fastTrackBalanceVersion === 'income-scaled'
-              ? fastTrackDreamCost(dream, fastTrackStartingIncome(player), 24)
-              : FAST_TRACK_DREAM_COSTS[dream],
+          cost: dreamCostFor(state, player, dream),
         },
       },
       playerId,
@@ -872,6 +881,7 @@ const checkFastTrack = (state: GameState, playerId: string) => {
   const fastTrackIncome = roundedPassiveIncome * 100
   const jobLossInsuranceEnded = player.insurance === 'job-loss'
   const quick = state.setup.pace === 'quick'
+  const goalGain = fastTrackGoalGainFor(state.setup)
   // Living economy: half a Revenue Day pays out on arrival, so Freedom Lane moves are playable at once.
   // A full payout let quick games end within a round of arriving (tuned with `npm run simulate`).
   const arrivalPayout = livingEconomy(state) ? Math.round(fastTrackIncome * FAST_TRACK_ARRIVAL_PAYOUT_RATE / 1000) * 1000 : 0
@@ -880,8 +890,8 @@ const checkFastTrack = (state: GameState, playerId: string) => {
     cash: current.cash + arrivalPayout,
     phase: 'fast-track',
     fastTrackIncome,
-    fastTrackGoal: fastTrackIncome + (quick ? QUICK_PACE.fastTrackGoalGain : STANDARD_FAST_TRACK_GOAL_GAIN),
-    ...(quick ? { fastTrackGoalGain: QUICK_PACE.fastTrackGoalGain } : {}),
+    fastTrackGoal: fastTrackIncome + goalGain,
+    ...(quick ? { fastTrackGoalGain: goalGain } : {}),
     position: 0,
     insurance: jobLossInsuranceEnded ? undefined : current.insurance,
   }))

@@ -41,6 +41,7 @@ import {
   ShoppingBag,
   Sparkles,
   Star,
+  Swords,
   Stethoscope,
   TrendingUp,
   Trophy,
@@ -94,8 +95,6 @@ import {
   FAST_TRACK_GROWTH_UPGRADE_RATE,
   FAST_TRACK_REINVEST_RATE,
   FAST_TRACK_REINVEST_LIMIT,
-  QUICK_PACE,
-  STANDARD_FAST_TRACK_GOAL_GAIN,
   canChargeCreditCard,
   canTakeLoan,
   canTransferOpportunity,
@@ -108,6 +107,8 @@ import {
   executeCommand,
   fastTrackExpansionCost,
   fastTrackGoalGain,
+  fastTrackGoalGainFor,
+  dreamCostFor,
   fastTrackStartingIncome,
   fastTrackBusinessIncome,
   fastTrackReinvestCost,
@@ -565,6 +566,19 @@ function App() {
       audio.current.play('bankrupt')
     }
   }, [game, showStart, audible])
+  // Warn once when an opponent reaches the Freedom Lane: from there it can win within a few rounds.
+  const previousPhases = useRef<string[]>([])
+  useEffect(() => {
+    const phases = game?.players.map((player) => player.phase) ?? []
+    const previous = previousPhases.current
+    previousPhases.current = phases
+    if (!game || game.winnerId || previous.length !== phases.length) return
+    const arrived = game.players.find((player, index) => !player.isHuman && previous[index] === 'rat-race' && player.phase === 'fast-track')
+    if (!arrived) return
+    setNotice({ text: t('{name} 进入了自由快道！收入再增加 {gain} 就会获胜。', { name: tn(arrived.name), gain: money(fastTrackGoalGain(arrived)) }) })
+    // Not cleared on the next state: AI turns change the game long before the toast should go.
+    window.setTimeout(() => setNotice(null), 4000)
+  }, [game])
   useEffect(() => {
     if (!game || showStart || showFastTrackCelebration || adPlaying) return
     storage.set(SAVE_KEY, JSON.stringify(game))
@@ -1254,6 +1268,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
         <div className="header-actions"><LanguageToggle language={language} onLanguage={onLanguage} /><button className="text-control" title={t('切换游戏提示密度')} onClick={() => onMode(mode === 'guided' ? 'standard' : 'guided')}>{mode === 'guided' ? t('引导') : t('标准')}</button><button className={`icon-button ${fastAi ? 'active' : ''}`} title={fastAi ? t('恢复 AI 动画') : t('快进 AI 动画')} onClick={onFastAi}><Bot /></button><button className={`icon-button ${soundEnabled ? 'active' : ''}`} title={soundEnabled ? t('关闭游戏音效') : t('开启游戏音效')} aria-pressed={soundEnabled} onClick={onSound}>{soundEnabled ? <Volume2 /> : <VolumeX />}</button><button className="icon-button" title={t('规则帮助')} onClick={() => setShowHelp(true)}><CircleHelp /></button><button className="icon-button" title={t('返回主菜单并保留存档')} onClick={onMenu}><House /></button><button className="icon-button" title={t('删除存档并重新开始')} onClick={onRequestReset}><RotateCcw /></button></div>
       </section>
       {winner && <section className="winner-banner"><Sparkles /><div><strong>{winner.isHuman ? t('你赢得了游戏！') : t('{name} 赢得了游戏', { name: tn(winner.name) })}</strong><span>{winner.isHuman ? t('你已经实现财务目标。') : t('查看事件记录了解最后一步。')}</span></div></section>}
+      {!winner && <RivalAlert game={game} />}
       <div className="game-grid">
         <Finance game={game} mode={mode} onCommand={onCommand} />
         <section className="play-area">
@@ -1262,7 +1277,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
         <Activity game={game} guide={guide && <section className="guide-card" aria-live="polite"><CircleHelp /><div><strong>{t(guide.title)}</strong><p>{t(guide.text, guide.params)}</p></div><button onClick={() => setSeenGuides((seen) => { const next = [...seen, guide.id]; storage.set('cashflow-lab-guides', JSON.stringify(next)); return next })}>{t('知道了')}</button></section>} />
         <OpponentDashboard game={game} />
       </div>
-      {showHelp && <div className="help-backdrop" role="presentation" onMouseDown={() => setShowHelp(false)}><section className="rules-panel" role="dialog" aria-modal="true" aria-labelledby="rules-title" onMouseDown={(event) => event.stopPropagation()}><header><div><small>{t('随时查阅')}</small><h2 id="rules-title">{t('游戏规则')}</h2></div><button className="icon-button" title={t('关闭规则')} onClick={() => setShowHelp(false)}>×</button></header><div className="rules-grid"><article><strong>{t('打工圈')}</strong><p>{t('经过发薪日结算月现金流。购买正现金流资产；被动收入严格超过总支出时进入自由快道。')}</p></article><article><strong>{t('贷款与破产')}</strong><p>{t('贷款以 $1,000 为单位，每月支付余额的 10%。现金为负时必须借款、清算或宣布破产。')}</p></article><article><strong>{t('市场与慈善')}</strong><p>{t('市场按座位顺序由符合条件的玩家响应。慈善换取未来三个有效回合的双骰选择。')}</p></article>{livingEconomy(game) && <article><strong>{t('信用卡与行情')}</strong><p>{t('额外支出可以刷信用卡，每月多付金额的 5% 直到还清。股票和基金价格每轮随经济周期变化，可随时按市价卖出。')}</p></article>}<article><strong>{t('自由快道')}</strong><p>{t('经营企业提高收入，出售企业筹集梦想资金。收入增加 {gain}，或买下自己的梦想即可获胜。', { gain: `$${(game.setup.pace === 'quick' ? QUICK_PACE.fastTrackGoalGain : STANDARD_FAST_TRACK_GOAL_GAIN).toLocaleString('en-US')}` })}</p></article></div><p className="shortcut-hint">{t('快捷键：R 掷骰子 · E 结束回合 · ? 打开或关闭规则')}</p><button className="primary wide" onClick={() => setShowHelp(false)}>{t('继续游戏')}</button></section></div>}
+      {showHelp && <div className="help-backdrop" role="presentation" onMouseDown={() => setShowHelp(false)}><section className="rules-panel" role="dialog" aria-modal="true" aria-labelledby="rules-title" onMouseDown={(event) => event.stopPropagation()}><header><div><small>{t('随时查阅')}</small><h2 id="rules-title">{t('游戏规则')}</h2></div><button className="icon-button" title={t('关闭规则')} onClick={() => setShowHelp(false)}>×</button></header><div className="rules-grid"><article><strong>{t('打工圈')}</strong><p>{t('经过发薪日结算月现金流。购买正现金流资产；被动收入严格超过总支出时进入自由快道。')}</p></article><article><strong>{t('贷款与破产')}</strong><p>{t('贷款以 $1,000 为单位，每月支付余额的 10%。现金为负时必须借款、清算或宣布破产。')}</p></article><article><strong>{t('市场与慈善')}</strong><p>{t('市场按座位顺序由符合条件的玩家响应。慈善换取未来三个有效回合的双骰选择。')}</p></article>{livingEconomy(game) && <article><strong>{t('信用卡与行情')}</strong><p>{t('额外支出可以刷信用卡，每月多付金额的 5% 直到还清。股票和基金价格每轮随经济周期变化，可随时按市价卖出。')}</p></article>}<article><strong>{t('自由快道')}</strong><p>{t('经营企业提高收入，出售企业筹集梦想资金。收入增加 {gain}，或买下自己的梦想即可获胜。', { gain: `$${fastTrackGoalGainFor(game.setup).toLocaleString('en-US')}` })}</p></article></div><p className="shortcut-hint">{t('快捷键：R 掷骰子 · E 结束回合 · ? 打开或关闭规则')}</p><button className="primary wide" onClick={() => setShowHelp(false)}>{t('继续游戏')}</button></section></div>}
       {showFastTrackCelebration && (
         <div className="fast-track-celebration-backdrop" role="presentation">
           <section className="fast-track-celebration" role="dialog" aria-modal="true" aria-labelledby="fast-track-celebration-title">
@@ -1516,6 +1531,33 @@ function SecurityTicker({ game, onCommand }: { game: GameState; onCommand: (comm
   )
 }
 
+// Opponents in the Freedom Lane can win within a few rounds; say how close each one is.
+const rivalGap = (game: GameState, player: PlayerState) => ({
+  income: Math.max(0, player.fastTrackGoal - player.fastTrackIncome),
+  dream: dreamCostFor(game, player),
+})
+
+function RivalAlert({ game }: { game: GameState }) {
+  const rivals = game.players.filter((player) => !player.isHuman && !player.bankrupt && player.phase === 'fast-track')
+  if (rivals.length === 0) return null
+  return (
+    <section className="rival-alert" role="status" aria-label={t('对手冲刺提醒')}>
+      <Swords />
+      <ul>
+        {rivals.map((player) => {
+          const gap = rivalGap(game, player)
+          return (
+            <li key={player.id}>
+              <strong>{t('{name} 在自由快道', { name: tn(player.name) })}</strong>
+              <span>{gap.income === 0 ? t('收入目标已达成') : t('收入还差 {income} 即获胜', { income: money(gap.income) })} · {t('梦想需 {cost}，现金 {cash}', { cost: money(gap.dream), cash: money(player.cash) })}</span>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
 function OpponentDashboard({ game }: { game: GameState }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const current = game.players[game.currentPlayerIndex]
@@ -1547,6 +1589,10 @@ function OpponentDashboard({ game }: { game: GameState }) {
                 <span><small>{t('状态')}</small><strong>{tx(playerStatusText(player))}</strong></span>
               </div>
               <div className="mini-progress"><i style={{ width: `${progress}%` }} /></div>
+              {player.phase === 'fast-track' && !player.bankrupt && (() => {
+                const gap = rivalGap(game, player)
+                return <p className="rival-gap"><Swords />{t('获胜还差：收入 {income} · 梦想资金 {dream}', { income: money(gap.income), dream: money(Math.max(0, gap.dream - player.cash)) })}</p>
+              })()}
               {expanded && (
                 <div className="opponent-details">
                   <dl>

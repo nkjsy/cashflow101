@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BIG_DEALS, DOODADS, EXPANSION_CARD_IDS, FAST_TRACK_BOARD, FAST_TRACK_BUSINESSES, FAST_TRACK_DREAM_BY_POSITION, FAST_TRACK_RISKS, MARKETS, SECURITY_MARKET, SMALL_DEALS } from './data'
-import { createGame as createSeededGame, executeCommand, replayGame, totalExpenses } from './engine'
+import { LIVING_QUICK_FAST_TRACK_GOAL_GAIN, QUICK_PACE, STANDARD_FAST_TRACK_GOAL_GAIN, createGame as createSeededGame, executeCommand, fastTrackGoalGain, fastTrackGoalGainFor, replayGame, totalExpenses } from './engine'
 import { chooseAutoplayCommand } from '../simulation/simulator'
 import { playBasicAiTurn } from './ai'
 import type { Asset, GameCommand, GameState } from './types'
@@ -239,6 +239,22 @@ describe('living economy', () => {
     expect(human.phase).toBe('fast-track')
     expect(human.cash).toBe(10000 - 1000 + human.fastTrackIncome / 2)
     expect(bought.logs.some((entry) => entry.message.includes('半个收益日的收入'))).toBe(true)
+  })
+
+  it('raises the quick-game Freedom Lane target in the living economy only', () => {
+    const arrive = (economy: 'legacy' | 'living-v1') => {
+      const state = createSeededGame(1, 42, undefined, '教师', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'quick', economy)
+      state.currentPlayerIndex = 0
+      state.players[0].cash = 10000
+      state.pendingDecision = { type: 'opportunity', playerId: 'player-human', opportunity: { ...SMALL_DEALS[0], downPayment: 1000, cashFlow: 5000 } }
+      state.turnStage = 'awaiting-decision'
+      const human = run(state, { type: 'BUY_OPPORTUNITY', actorId: 'player-human' }).players[0]
+      expect(human.phase).toBe('fast-track')
+      return human
+    }
+    expect(fastTrackGoalGain(arrive('living-v1'))).toBe(LIVING_QUICK_FAST_TRACK_GOAL_GAIN)
+    expect(fastTrackGoalGain(arrive('legacy'))).toBe(QUICK_PACE.fastTrackGoalGain)
+    expect(fastTrackGoalGainFor({ pace: 'standard', economyRulesVersion: 'living-v1' })).toBe(STANDARD_FAST_TRACK_GOAL_GAIN)
   })
 
   it('opens Freedom Lane deals from the first lap and lets players sponsor other dreams', () => {
