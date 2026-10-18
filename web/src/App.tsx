@@ -347,6 +347,28 @@ const loadGame = (): GameState | null => {
   }
 }
 
+const CONFETTI_COLORS = ['#f5cf73', '#1d8060', '#39758d', '#e87ba4', '#eb6834', '#fff3d6']
+
+// Decorative burst for big moments. Positions are derived from the index so renders are stable.
+function Confetti({ pieces = 36 }: { pieces?: number }) {
+  return (
+    <div className="confetti" aria-hidden="true">
+      {Array.from({ length: pieces }, (_, index) => (
+        <i
+          key={index}
+          style={{
+            left: `${(index * 37) % 100}%`,
+            background: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+            animationDelay: `${(index % 9) * 0.09}s`,
+            animationDuration: `${1.8 + (index % 5) * 0.25}s`,
+            transform: `rotate(${(index * 47) % 360}deg)`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function PlayerAvatar({
   player,
   index,
@@ -840,6 +862,10 @@ function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalit
               <h1>Ratrace</h1>
               <p>{t('从工资单出发，建立资产，让现金流带你离开打工圈。')}</p>
             </div>
+            <div className="hero-art" aria-hidden="true">
+              <span className="hero-coin">$</span>
+              <svg viewBox="0 0 120 48"><polyline points="0,40 18,34 34,37 52,24 70,27 88,12 120,6" /></svg>
+            </div>
             <div className="setup-hero-actions">
               <span>{pace === 'quick' ? t('单机 · 约 12 分钟') : t('单机 · 约 35 分钟')}</span>
               <button className="achievements-button" onClick={() => setShowAchievements(true)}><Trophy />{t('成就 {count}/{total}', { count: achievementCount, total: ACHIEVEMENT_IDS.length })}</button>
@@ -1233,6 +1259,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
       {showFastTrackCelebration && (
         <div className="fast-track-celebration-backdrop" role="presentation">
           <section className="fast-track-celebration" role="dialog" aria-modal="true" aria-labelledby="fast-track-celebration-title">
+            <Confetti />
             <span className="celebration-icon"><PartyPopper /></span>
             <small>{t('财务自由达成')}</small>
             <h2 id="fast-track-celebration-title">{t('你进入了自由快道！')}</h2>
@@ -1256,6 +1283,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
       {((human.bankrupt && !spectating) || winner) && (
         <div className="game-over-backdrop" role="presentation">
           <section className="game-over-dialog" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+            {winner?.isHuman && <Confetti />}
             <span className={human.bankrupt ? 'game-over-icon bankrupt' : 'game-over-icon'}>
               {human.bankrupt ? <BanknoteArrowDown /> : <Sparkles />}
             </span>
@@ -1888,6 +1916,7 @@ function Decision({
         <div className="ready-heading" tabIndex={mode === 'guided' ? 0 : undefined}><small>{t('第 {turn} 轮', { turn: game.turn })}{game.setup.strategyRulesVersion === 'strategy-v1' && ` · ${tn(currentEconomicCycle(game).name)}`}</small><h2>{game.setup.strategyRulesVersion === 'strategy-v1' ? actionUsed ? t('策略已执行，可以前进') : t('先经营，或直接前进') : t('准备前进')}</h2>{mode === 'guided' && <span className="strategy-heading-tooltip" role="tooltip">{game.setup.strategyRulesVersion === 'strategy-v1' ? t('{cycle} 每回合最多执行一项策略，之后仍可掷骰。', { cycle: tn(currentEconomicCycle(game).description) }) : t('经过发薪日会立即结算月现金流，停靠格随后生效。')}</span>}</div>
         <div className="turn-actions">
           {game.setup.strategyRulesVersion === 'strategy-v1' && player.phase === 'rat-race' && <div className="strategy-actions">
+            <small className="strategy-label">{actionUsed ? t('本回合的策略已执行') : t('掷骰前可执行一项策略')}</small>
             <label className="strategy-control" tabIndex={0}><select aria-label={t('选择升级资产')} value={selectedAssetId} disabled={actionUsed || upgradeableAssets.length === 0} onChange={(event) => setUpgradeAssetId(event.target.value)}><option value="">{player.assets.length === 0 ? t('暂无资产') : t('没有可升级资产')}</option>{upgradeableAssets.map((asset) => <option key={asset.id} value={asset.id}>{upgradeAssetLabels.get(asset.id)} · {t(assetKindLabels[asset.kind ?? 'real-estate'])} · L{asset.level ?? 1} · {t('{amount}/月', { amount: money(asset.cashFlow) })}</option>)}</select><button aria-describedby="upgrade-help" disabled={actionUsed || !selectedAssetId} onClick={() => onCommand({ type: 'UPGRADE_ASSET', actorId: player.id, assetId: selectedAssetId })}><Wrench />{upgradeCost > 0 ? t('升级 {amount}', { amount: money(upgradeCost) }) : t('升级')}</button><span id="upgrade-help" className="strategy-tooltip" role="tooltip">{selectedAsset ? t('{kind}“{asset}”从 L{from} 升到 L{to} 需 {cost}；当前现金流 {cashflow}/月，每级增加基础月现金流的 50%。{shortfall}', {
               kind: t(assetKindLabels[selectedAsset.kind ?? 'real-estate']),
               asset: upgradeAssetLabels.get(selectedAsset.id) ?? '',
@@ -1907,6 +1936,7 @@ function Decision({
             })}{reviewPayment > 0 && reviewRelief === 0 ? t('偿还后贷款已结清，因此没有可减免的剩余贷款。') : t('减免额按 $100 取整，并受剩余贷款上限限制。')}</span></span>
           </div>}
           {game.setup.strategyRulesVersion === 'strategy-v1' && player.phase === 'fast-track' && <div className="strategy-actions fast-strategy-actions">
+            <small className="strategy-label">{actionUsed ? t('本回合的策略已执行') : t('掷骰前可执行一项策略')}</small>
             <label className="strategy-control" tabIndex={0}><select aria-label={t('选择自由快道企业')} value={selectedFastTrackBusinessId} disabled={actionUsed || fastTrackBusinesses.length === 0} onChange={(event) => setFastTrackBusinessId(event.target.value)}><option value="">{t('暂无企业')}</option>{fastTrackBusinesses.map((business) => <option key={business.id} value={business.id}>{tn(business.name)} · {business.sector ? t(fastTrackSectorLabels[business.sector]) : t('未分类')} · {money(business.cashFlow)}</option>)}</select><button disabled={actionUsed || !selectedFastTrackBusiness || Boolean(selectedFastTrackBusiness.upgrade) || player.cash < growthUpgradeCost} onClick={() => selectedFastTrackBusiness && onCommand({ type: 'FAST_TRACK_UPGRADE_BUSINESS', actorId: player.id, businessId: selectedFastTrackBusiness.id, branch: 'growth' })}>{t('规模化')}</button><button disabled={actionUsed || !selectedFastTrackBusiness || Boolean(selectedFastTrackBusiness.upgrade) || player.cash < resilienceUpgradeCost} onClick={() => selectedFastTrackBusiness && onCommand({ type: 'FAST_TRACK_UPGRADE_BUSINESS', actorId: player.id, businessId: selectedFastTrackBusiness.id, branch: 'resilience' })}>{t('韧性化')}</button><span className="strategy-tooltip" role="tooltip">{t('每家企业只能选择一次分支。规模化支付 {growthCost}，该企业收入提高 50%（+{growthGain}）；韧性化支付 {resilienceCost}，所有自由快道风险损失降低 25%，多家最高叠加到 75%。', { growthCost: money(growthUpgradeCost), growthGain: money(growthUpgradeGain), resilienceCost: money(resilienceUpgradeCost) })}</span></label>
             <span className="strategy-control" tabIndex={0}><button disabled={actionUsed || !selectedFastTrackBusiness || (selectedFastTrackBusiness.reinvestments ?? 0) >= FAST_TRACK_REINVEST_LIMIT || player.cash < reinvestCost} onClick={() => selectedFastTrackBusiness && onCommand({ type: 'FAST_TRACK_REINVEST', actorId: player.id, businessId: selectedFastTrackBusiness.id })}>{t('再投资')}</button><button disabled={actionUsed || !selectedFastTrackBusiness} onClick={() => selectedFastTrackBusiness && onCommand({ type: 'FAST_TRACK_SELL_BUSINESS', actorId: player.id, businessId: selectedFastTrackBusiness.id })}>{t('出售企业')}</button><span className="strategy-tooltip" role="tooltip">{t('再投资立即支付 {reinvestCost}，该企业收入提高 25%（+{reinvestGain}），每家最多 {limit} 次；多产业协同使成本降低 20%。出售企业立即回收 {proceeds}，并失去该企业全部 {income} 收入；多产业协同使回收率从 70% 提高到 80%。', { reinvestCost: money(reinvestCost), reinvestGain: money(reinvestGain), limit: FAST_TRACK_REINVEST_LIMIT, proceeds: money(saleProceeds), income: money(selectedFastTrackBusiness?.cashFlow ?? 0) })}</span></span>
             <span className="strategy-control" tabIndex={0}><button aria-describedby="expand-help" disabled={actionUsed || expansionLimitReached || player.cash < expansionCost} onClick={() => onCommand({ type: 'FAST_TRACK_EXPAND', actorId: player.id })}><TrendingUp />{t('扩张 {count}/{limit}', { count: player.fastTrackExpansions ?? 0, limit: FAST_TRACK_EXPANSION_LIMIT })}</button><span id="expand-help" className="strategy-tooltip" role="tooltip">{t('本局最多扩张 {limit} 次。支付 {cost}，收益日收入固定增加 {gain}，从 {from} 提升到 {to}。', { limit: FAST_TRACK_EXPANSION_LIMIT, cost: money(expansionCost), gain: money(FAST_TRACK_EXPANSION_GAIN), from: money(player.fastTrackIncome), to: money(expandedIncome) })}{expansionLimitReached ? t('扩张次数已用完，请通过购买自由快道企业继续增加收入。') : expandedIncome >= player.fastTrackGoal ? t('本次扩张会立即达到收入目标。') : t('扩张后距离收入目标还差 {amount}，仍需购买自由快道企业或恢复受损收入。', { amount: money(player.fastTrackGoal - expandedIncome) })}{!expansionLimitReached && player.cash < expansionCost ? t(' 当前现金还差 {amount}。', { amount: money(expansionCost - player.cash) }) : !expansionLimitReached ? t('执行后仍可掷骰。') : ''}</span></span>

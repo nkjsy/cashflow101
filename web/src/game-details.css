@@ -1709,18 +1709,18 @@
   transform: none;
 }
 
-.strategy-actions:not(.fast-strategy-actions) > .strategy-control:nth-child(2) .strategy-tooltip {
+.strategy-actions:not(.fast-strategy-actions) > .strategy-control:nth-child(3) .strategy-tooltip {
   right: 0;
   left: auto;
   transform: none;
 }
 
-.fast-strategy-actions > .strategy-control:first-child .strategy-tooltip {
+.fast-strategy-actions > .strategy-control:nth-child(2) .strategy-tooltip {
   left: 0;
   transform: none;
 }
 
-.fast-strategy-actions > .strategy-control:nth-child(2) .strategy-tooltip {
+.fast-strategy-actions > .strategy-control:nth-child(3) .strategy-tooltip {
   right: 0;
   left: auto;
   transform: none;

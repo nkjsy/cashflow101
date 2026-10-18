@@ -506,6 +506,9 @@ export const UI_EN = {
   '快捷键 E': 'Shortcut: E',
   '距下一次挑战 {hours} 小时 {minutes} 分': 'Next challenge in {hours}h {minutes}m',
 
+  掷骰前可执行一项策略: 'One strategy move before you roll',
+  本回合的策略已执行: 'Strategy move used this turn',
+
   // Daily challenge
   每日挑战: 'Daily Challenge',
   '今天 {date} · 全球同一副牌、同一组骰子': 'Today, {date} · same deck and dice for everyone',
