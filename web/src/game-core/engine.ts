@@ -3,6 +3,7 @@ import {
   BIG_DEALS,
   DOODADS,
   DREAMS,
+  EXPANSION_CARD_IDS,
   FAST_TRACK_BOARD,
   FAST_TRACK_DREAM_BY_POSITION,
   FAST_TRACK_DREAM_COSTS,
@@ -302,14 +303,17 @@ export const createGame = (
   pace: GamePace = 'standard',
   economyRulesVersion: EconomyRulesVersion = 'legacy',
 ): GameState => {
+  const deckIds = (cards: ReadonlyArray<{ id: string }>) => cards
+    .map((card) => card.id)
+    .filter((id) => economyRulesVersion === 'living-v1' || !EXPANSION_CARD_IDS.has(id))
   const professions = shuffle(PROFESSIONS, seed)
   const dreams = shuffle(DREAMS, professions.seed)
-  const smallDeals = shuffle(SMALL_DEALS.map((deal) => deal.id), dreams.seed)
-  const bigDeals = shuffle(BIG_DEALS.map((deal) => deal.id), smallDeals.seed)
-  const doodads = shuffle(DOODADS.map((card) => card.id), bigDeals.seed)
-  const markets = shuffle(MARKETS.map((card) => card.id), doodads.seed)
-  const fastTrackBusinesses = shuffle(FAST_TRACK_BUSINESSES.map((business) => business.id), seed ^ 0x46544231)
-  const fastTrackRisks = shuffle(FAST_TRACK_RISKS.map((risk) => risk.id), seed ^ 0x46545231)
+  const smallDeals = shuffle(deckIds(SMALL_DEALS), dreams.seed)
+  const bigDeals = shuffle(deckIds(BIG_DEALS), smallDeals.seed)
+  const doodads = shuffle(deckIds(DOODADS), bigDeals.seed)
+  const markets = shuffle(deckIds(MARKETS), doodads.seed)
+  const fastTrackBusinesses = shuffle(deckIds(FAST_TRACK_BUSINESSES), seed ^ 0x46544231)
+  const fastTrackRisks = shuffle(deckIds(FAST_TRACK_RISKS), seed ^ 0x46545231)
   const personalities = shuffle<AiPersonality>(['conservative', 'balanced', 'aggressive'], seed ^ 0x41495031)
   const longTermGoals: LongTermGoalId[] = ['diversified', 'master-asset', 'debt-free']
   const longTermGoalOffset = ((seed ^ 0x474f414c) >>> 0) % longTermGoals.length

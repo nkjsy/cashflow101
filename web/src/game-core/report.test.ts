@@ -17,7 +17,7 @@ const playToEnd = (state: GameState) => {
 }
 
 describe('game report', () => {
-  const finished = playToEnd(createGame(2, 7, undefined, undefined, 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'standard', 'living-v1'))
+  const finished = playToEnd(createGame(2, 1, undefined, undefined, 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'standard', 'living-v1'))
   const report = buildGameReport(finished)!
 
   it('charts one point per round, ending on the final state', () => {

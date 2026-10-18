@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SECURITY_MARKET } from './data'
+import { BIG_DEALS, DOODADS, EXPANSION_CARD_IDS, FAST_TRACK_BUSINESSES, FAST_TRACK_RISKS, MARKETS, SECURITY_MARKET, SMALL_DEALS } from './data'
 import { createGame as createSeededGame, executeCommand, replayGame, totalExpenses } from './engine'
 import { chooseAutoplayCommand } from '../simulation/simulator'
 import type { Asset, GameCommand, GameState } from './types'
@@ -39,6 +39,19 @@ describe('living economy', () => {
       expect(state.securityHistory?.[security.symbol]).toEqual([security.basePrice])
     }
     expect(createSeededGame(1, 42).securityPrices).toBeUndefined()
+  })
+
+  it('adds the expansion cards to new games only', () => {
+    const living = createLivingGame()
+    const legacy = createSeededGame(1, 42)
+    const decks = (state: GameState) => [state.smallDealDeck, state.bigDealDeck, state.doodadDeck, state.marketDeck, state.fastTrackBusinessDeck, state.fastTrackRiskDeck]
+    const allCards = [SMALL_DEALS, BIG_DEALS, DOODADS, MARKETS, FAST_TRACK_BUSINESSES, FAST_TRACK_RISKS]
+
+    expect(decks(living).map((deck) => deck.length)).toEqual(allCards.map((cards) => cards.length))
+    expect(decks(legacy).flat().filter((id) => EXPANSION_CARD_IDS.has(id))).toEqual([])
+    expect(decks(legacy).map((deck) => deck.length)).toEqual(allCards.map((cards) => cards.filter((card) => !EXPANSION_CARD_IDS.has(card.id)).length))
+    const knownIds = new Set(allCards.flat().map((card) => card.id))
+    expect([...EXPANSION_CARD_IDS].filter((id) => !knownIds.has(id))).toEqual([])
   })
 
   it('lets the player choose how to pay a Splurge', () => {
@@ -169,10 +182,13 @@ describe('living economy', () => {
   })
 
   it('replays a living-economy game to the same state', () => {
-    let state = createLivingGame()
-    for (let step = 0; step < 400 && !state.winnerId; step += 1) {
+    // Unlike the other cases, keep the seeded starting player: a replay rebuilds it from the seed.
+    let state = createSeededGame(1, 42, undefined, '教师', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'standard', 'living-v1')
+    // Play until the first Splurge has been paid so the replay covers the new decision.
+    for (let step = 0; step < 4000 && !state.winnerId && !state.commandHistory.some((command) => command.type === 'PAY_DOODAD'); step += 1) {
       state = run(state, chooseAutoplayCommand(state))
     }
+    for (let step = 0; step < 200 && !state.winnerId; step += 1) state = run(state, chooseAutoplayCommand(state))
     expect(state.commandHistory.some((command) => command.type === 'PAY_DOODAD')).toBe(true)
     expect(replayGame(state)).toEqual(state)
   })
