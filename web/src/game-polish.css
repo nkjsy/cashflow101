@@ -427,3 +427,138 @@
     overflow: visible;
   }
 }
+
+/* Living economy: security ticker and credit card controls. */
+.ticker ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ticker li {
+  padding: 7px 0;
+  border-bottom: 1px solid #e8ebe7;
+}
+
+.ticker li:last-child {
+  border-bottom: 0;
+}
+
+.ticker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 60px auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.ticker-symbol strong,
+.ticker-price strong {
+  display: block;
+  font: 600 12px 'DM Mono', monospace;
+}
+
+.ticker-symbol small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticker-price {
+  min-width: 62px;
+  text-align: right;
+}
+
+.ticker-price small {
+  display: block;
+  font: 600 10px 'DM Mono', monospace;
+  color: var(--muted);
+}
+
+.ticker-price small.up { color: var(--green2); }
+.ticker-price small.down { color: var(--red); }
+
+.sparkline {
+  width: 60px;
+  height: 20px;
+  overflow: visible;
+}
+
+.sparkline polyline {
+  fill: none;
+  stroke: var(--green2);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sparkline.down polyline {
+  stroke: var(--red);
+}
+
+.ticker-holding {
+  margin-top: 5px;
+  padding: 5px 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #f3f6f2;
+  border-radius: 5px;
+}
+
+.ticker-holding small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ticker-holding button {
+  min-height: 26px;
+  padding: 0 9px;
+  color: white;
+  background: var(--green);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ticker-holding button.loss {
+  background: #8a5a50;
+}
+
+.credit-repay {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 7px;
+  color: #6b2f25;
+  background: #fbefec;
+  border: 1px solid #ecc9c1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.credit-repay svg {
+  grid-row: span 2;
+  width: 18px;
+  height: 18px;
+}
+
+.credit-repay small {
+  color: #8f5a50;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.decision-icon.doodad-icon {
+  color: #b74d3d;
+  background: #fbefec;
+}

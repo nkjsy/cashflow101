@@ -8,6 +8,8 @@ export type FastTrackBalanceVersion = 'legacy' | 'income-scaled' | 'accelerated'
 export type RatRaceBalanceVersion = 'legacy' | 'global-v2'
 export type StrategyRulesVersion = 'legacy' | 'strategy-v1'
 export type GamePace = 'standard' | 'quick'
+// living-v1: splurges can go on a credit card and securities trade at prices that move every round.
+export type EconomyRulesVersion = 'legacy' | 'living-v1'
 export type EconomicCycleId = 'steady-growth' | 'property-boom' | 'high-interest'
 export type LongTermGoalId = 'diversified' | 'master-asset' | 'debt-free'
 export type InsuranceKind = 'job-loss' | 'maintenance' | 'lawsuit'
@@ -53,6 +55,8 @@ export type PlayerState = {
   baseExpenses: number
   passiveIncome: number
   bankLoan: number
+  creditCardDebt?: number
+  creditCardPayment?: number
   babies: number
   perChildExpense: number
   assets: Asset[]
@@ -152,6 +156,7 @@ export type PendingDecision =
   | { type: 'deal-choice'; playerId: string }
   | { type: 'opportunity'; playerId: string; opportunity: Opportunity }
   | { type: 'charity'; playerId: string; donation: number }
+  | { type: 'doodad'; playerId: string; cardId: string; cost: number; careSavings: number }
   | { type: 'market'; playerId: string; assetId: string; assetName: string; salePrice: number; levelPremium?: number; cardId: string; responderIds: string[] }
   | { type: 'insolvency'; playerId: string; reason: string }
   | { type: 'fast-track-business'; playerId: string; business: FastTrackBusiness }
@@ -181,6 +186,7 @@ export type GameState = {
     ratRaceBalanceVersion?: RatRaceBalanceVersion
     strategyRulesVersion?: StrategyRulesVersion
     pace?: GamePace
+    economyRulesVersion?: EconomyRulesVersion
   }
   commandHistory: GameCommand[]
   revision: number
@@ -206,6 +212,9 @@ export type GameState = {
   logs: GameLogEntry[]
   winnerId: string | null
   economicCycleIndex: number
+  // Living economy only: current price per unit and recent closing prices, keyed by symbol.
+  securityPrices?: Record<string, number>
+  securityHistory?: Record<string, number[]>
 }
 
 export type GameCommand =
@@ -216,6 +225,9 @@ export type GameCommand =
   | { type: 'CHOOSE_CHARITY'; actorId: string; donate: boolean }
   | { type: 'TAKE_LOAN'; actorId: string; amount: number }
   | { type: 'REPAY_LOAN'; actorId: string; amount: number }
+  | { type: 'PAY_DOODAD'; actorId: string; method: 'cash' | 'credit' }
+  | { type: 'REPAY_CREDIT_CARD'; actorId: string }
+  | { type: 'SELL_SECURITY'; actorId: string; assetId: string }
   | { type: 'SELL_MARKET_ASSET'; actorId: string }
   | { type: 'PASS_MARKET'; actorId: string }
   | { type: 'LIQUIDATE_ASSET'; actorId: string; assetId: string }

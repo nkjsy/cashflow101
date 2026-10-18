@@ -208,6 +208,13 @@ export const BIG_DEALS: Opportunity[] = [
 
 export const OPPORTUNITIES: Opportunity[] = [...SMALL_DEALS, ...BIG_DEALS]
 
+// Securities whose price moves every round in the living economy. Base prices match the deal cards.
+export const SECURITY_MARKET = [
+  { symbol: 'NOVA', dealId: 'stock-nova', basePrice: 10, volatility: 0.28 },
+  { symbol: 'HARB', dealId: 'stock-harbor', basePrice: 20, volatility: 0.18 },
+  { symbol: 'CITY', dealId: 'fund-index', basePrice: 40, volatility: 0.07 },
+] as const
+
 export const DOODADS: DoodadCard[] = [
   { id: 'doodad-phone', name: '更换手机', description: '旧手机损坏，需要立即更换。', cost: 600 },
   { id: 'doodad-car-repair', name: '汽车维修', description: '车辆需要一次计划外维修。', cost: 900 },

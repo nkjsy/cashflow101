@@ -58,8 +58,8 @@ describe('translations', () => {
 
   it('renders every engine and AI log in English across full games', () => {
     const untranslated = new Set<string>()
-    for (const [seed, pace] of [[11, 'standard'], [12, 'quick'], [13, 'standard'], [14, 'quick']] as const) {
-      const game = createGame(3, seed, undefined, undefined, 'expert', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, pace)
+    for (const [seed, pace, economy] of [[11, 'standard', 'legacy'], [12, 'quick', 'legacy'], [13, 'standard', 'living-v1'], [14, 'quick', 'living-v1']] as const) {
+      const game = createGame(3, seed, undefined, undefined, 'expert', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, pace, economy)
       const { state, logs } = playCollectingLogs(game, 4000)
       expect(state.winnerId).not.toBeNull()
       expect(logs.some((entry) => entry.message.includes('经过自由快道收益日'))).toBe(true)

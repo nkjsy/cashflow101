@@ -17,6 +17,11 @@ export const LOG_EN = {
   ' 支付 ${cost}{care}。': ' You pay ${cost}{care}.',
   '，生活照护节省 ${savings}': ' (care expertise saved ${savings})',
   ' 当前无需支付。': ' Nothing to pay this time.',
+  '{card}：{description} 需支付 ${cost}{care}，可以现金支付或刷信用卡。': '{card}: {description} It costs ${cost}{care}. Pay cash or put it on a credit card.',
+  '现金支付 ${cost}。': 'Paid ${cost} in cash.',
+  '刷信用卡支付 ${cost}，每月还款增加 ${payment}。': 'Charged ${cost} to a credit card. Monthly payments go up by ${payment}.',
+  '还清信用卡 ${amount}，每月支出减少 ${payment}。': 'Paid off ${amount} of credit card debt. Monthly expenses drop by ${payment}.',
+  '按市价卖出 {asset} {quantity} 份，每份 ${price}，收回 ${proceeds}，{result}。': 'Sold {quantity} {quantity|unit|units} of {asset} at ${price} each for ${proceeds}: {result}.',
   '家庭新增成员，护理经验使儿童月支出不增加。': 'A new baby joins the family. Your nursing experience keeps child costs at $0.',
   '家庭新增成员，每月支出上升。': 'A new baby joins the family. Monthly expenses go up.',
   '进入失业期：{insurance}支付 ${cost}，并跳过 {turns} 回合。': 'Downsized: {insurance}pay ${cost} and skip {turns} {turns|turn|turns}.',
@@ -93,6 +98,7 @@ export const LOG_EN = {
   '先尝试可持续借款，再清算首付最高的资产，最后才宣布破产。': 'Tries sustainable borrowing first, then liquidates the largest down payment, and declares bankruptcy only as a last resort.',
   '{style}；专家会优先保留实现所选梦想所需的现金。': '{style}; Expert AIs hold back cash for their dream.',
   '现金足以支付所选梦想时立即实现，否则保留现金。': 'Buys its dream as soon as it can afford it; otherwise keeps the cash.',
+  '{style}，现金充足时直接付款，否则刷信用卡保留现金储备。': '{style}: pay cash when reserves allow, otherwise charge it to keep a cash cushion.',
   '根据现金储备处理当前选择。': 'Decides based on its cash reserve.',
 } as const
 

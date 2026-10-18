@@ -420,6 +420,32 @@ export const UI_EN = {
   还款: 'Repay',
   结束回合: 'End turn',
   取消: 'Cancel',
+
+  // Living economy: splurge payment, credit card and live security prices
+  金额: 'Amount',
+  付现后剩余: 'Cash after paying',
+  刷卡月供: 'Card payment',
+  '刷卡不花现金，但每月多付 {payment}，直到还清；月支出越高，离财务自由越远。': 'Charging keeps your cash, but costs {payment} a month until you pay it off. Higher expenses push financial freedom further away.',
+  刷信用卡: 'Charge it',
+  现金支付: 'Pay cash',
+  刷卡会使月现金流为负: 'Charging this would make your monthly cash flow negative',
+  '信用卡还款（余额 {amount}）': 'Credit card (balance {amount})',
+  '还清信用卡 {amount}': 'Pay off card {amount}',
+  '还清后每月支出减少 {amount}。': 'Cuts monthly expenses by {amount}.',
+  证券行情: 'Market prices',
+  '每轮更新 · {cycle}': 'Moves every round · {cycle}',
+  '持有 {quantity} 份 · {result}': 'Holding {quantity} · {result}',
+  '浮盈 {amount}': 'up {amount}',
+  '浮亏 {amount}': 'down {amount}',
+  '卖出 {amount}': 'Sell for {amount}',
+  只能在自己的回合卖出: 'You can only sell on your own turn',
+  '抽取额外支出卡：可以现金支付，或刷信用卡分期（每月多付金额的 5%，直到还清）。': 'Draw a Splurge card. Pay cash, or charge it to a credit card and pay 5% of it every month until it’s paid off.',
+  '现金还是信用卡？': 'Cash or credit?',
+  '刷卡保住现金，但每月多付金额的 5%，直到还清。月支出越高，被动收入越难超过总支出。': 'Charging keeps your cash, but adds 5% of the bill to every month until it’s paid off. The higher your expenses, the harder it is for passive income to beat them.',
+  证券价格每轮变化: 'Prices move every round',
+  '股票和基金按当前行情买入，可以在自己的回合随时按市价卖出。增长周期整体走强，高利率周期整体走弱。': 'Stocks and funds are bought at today’s price and can be sold at market on any of your turns. Growth cycles lift prices; high-interest cycles drag them down.',
+  信用卡与行情: 'Credit cards and prices',
+  '额外支出可以刷信用卡，每月多付金额的 5% 直到还清。股票和基金价格每轮随经济周期变化，可随时按市价卖出。': 'Splurges can go on a credit card that costs 5% of the bill every month until paid off. Stock and fund prices move with the economic cycle every round and can be sold at market any time.',
 } as const
 
 export type UiKey = keyof typeof UI_EN
