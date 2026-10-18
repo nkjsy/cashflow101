@@ -55,6 +55,14 @@ export const chooseDealOfferResponse = (state: GameState, player: PlayerState, o
   return { type: evaluation.attractive && affordable ? 'ACCEPT_DEAL_OFFER' : 'DECLINE_DEAL_OFFER', actorId: player.id }
 }
 
+// Sponsoring builds dream prep; keep enough cash afterwards to survive a bad risk card.
+export const DREAM_SPONSOR_CUSHION = 100000
+
+export const chooseDreamSponsor = (player: PlayerState, cost: number): GameCommand => ({
+  type: (player.dreamPreparation ?? 0) < 3 && player.cash - cost >= DREAM_SPONSOR_CUSHION ? 'SPONSOR_DREAM' : 'PASS_DREAM_SPONSOR',
+  actorId: player.id,
+})
+
 export const chooseCreditCardRepayment = (state: GameState, player: PlayerState): GameCommand | null => {
   const debt = player.creditCardDebt ?? 0
   return player.phase === 'rat-race' && debt > 0 && player.cash - debt >= getAiPolicy(state, player).reserve
@@ -220,6 +228,8 @@ const playBasicAiTurnInternal = (state: GameState): GameState => {
           : 'PASS_FAST_TRACK_BUSINESS',
       actorId: player.id,
     })
+  } else if (decision?.type === 'dream-sponsor') {
+    nextState = apply(nextState, chooseDreamSponsor(player, decision.cost))
   } else if (decision?.type === 'dream') {
     nextState = apply(nextState, {
       type: player.cash >= decision.cost ? 'BUY_DREAM' : 'PASS_DREAM',
@@ -262,6 +272,7 @@ const explainAiDecision = (state: GameState) => {
   if (decision.type === 'charity') return logText('{style}，捐赠后仍达到目标现金储备才换取三回合双骰。', { style })
   if (decision.type === 'insolvency') return logText('先尝试可持续借款，再清算首付最高的资产，最后才宣布破产。')
   if (decision.type === 'fast-track-business') return logText('{style}；专家会优先保留实现所选梦想所需的现金。', { style })
+  if (decision.type === 'dream-sponsor') return logText('赞助后仍留有应对风险的现金时，才赞助他人梦想来推进自己的梦想准备。')
   if (decision.type === 'dream') return logText('现金足以支付所选梦想时立即实现，否则保留现金。')
   return logText('根据现金储备处理当前选择。')
 }

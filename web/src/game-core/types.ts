@@ -163,6 +163,8 @@ export type PendingDecision =
   | { type: 'insolvency'; playerId: string; reason: string }
   | { type: 'fast-track-business'; playerId: string; business: FastTrackBusiness }
   | { type: 'dream'; playerId: string; dream: string; cost: number }
+  // Living economy: landing on another player's dream space.
+  | { type: 'dream-sponsor'; playerId: string; dream: string; cost: number }
 
 export type GameLogEntry = {
   id: number
@@ -243,6 +245,8 @@ export type GameCommand =
   | { type: 'PASS_FAST_TRACK_BUSINESS'; actorId: string }
   | { type: 'BUY_DREAM'; actorId: string }
   | { type: 'PASS_DREAM'; actorId: string }
+  | { type: 'SPONSOR_DREAM'; actorId: string }
+  | { type: 'PASS_DREAM_SPONSOR'; actorId: string }
   | { type: 'UPGRADE_ASSET'; actorId: string; assetId: string }
   | { type: 'BUY_INSURANCE'; actorId: string; insurance: InsuranceKind }
   | { type: 'FINANCIAL_REVIEW'; actorId: string }

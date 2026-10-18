@@ -1628,3 +1628,8 @@ body {
   .hero-art polyline { stroke-dashoffset: 0; }
   .board-space:hover { transform: none; }
 }
+
+.strategy-label.strategy-label-short {
+  color: #8a5a00;
+  font-weight: 700;
+}

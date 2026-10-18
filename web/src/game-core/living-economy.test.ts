@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BIG_DEALS, DOODADS, EXPANSION_CARD_IDS, FAST_TRACK_BUSINESSES, FAST_TRACK_RISKS, MARKETS, SECURITY_MARKET, SMALL_DEALS } from './data'
+import { BIG_DEALS, DOODADS, EXPANSION_CARD_IDS, FAST_TRACK_BOARD, FAST_TRACK_BUSINESSES, FAST_TRACK_DREAM_BY_POSITION, FAST_TRACK_RISKS, MARKETS, SECURITY_MARKET, SMALL_DEALS } from './data'
 import { createGame as createSeededGame, executeCommand, replayGame, totalExpenses } from './engine'
 import { chooseAutoplayCommand } from '../simulation/simulator'
 import { playBasicAiTurn } from './ai'
@@ -226,6 +226,47 @@ describe('living economy', () => {
     expect(answered.players[0].bankLoan).toBe(2000)
     expect(answered.currentPlayerIndex).toBe(0)
     expect(answered.commandHistory.filter((command) => command.actorId === 'player-human').map((command) => command.type)).toEqual(['TRANSFER_OPPORTUNITY'])
+  })
+
+  it('pays half a Revenue Day on arrival in the Freedom Lane', () => {
+    const state = createLivingGame()
+    state.players[0].cash = 10000
+    state.pendingDecision = { type: 'opportunity', playerId: 'player-human', opportunity: { ...SMALL_DEALS[0], downPayment: 1000, cashFlow: 3000 } }
+    state.turnStage = 'awaiting-decision'
+    const bought = run(state, { type: 'BUY_OPPORTUNITY', actorId: 'player-human' })
+    const human = bought.players[0]
+
+    expect(human.phase).toBe('fast-track')
+    expect(human.cash).toBe(10000 - 1000 + human.fastTrackIncome / 2)
+    expect(bought.logs.some((entry) => entry.message.includes('半个收益日的收入'))).toBe(true)
+  })
+
+  it('opens Freedom Lane deals from the first lap and lets players sponsor other dreams', () => {
+    const landOn = (living: boolean, wanted: (position: number) => boolean) => {
+      for (let position = 0; position < FAST_TRACK_BOARD.length; position += 1) {
+        const state = living ? createLivingGame() : createSeededGame(1, 42)
+        state.currentPlayerIndex = 0
+        Object.assign(state.players[0], { phase: 'fast-track', position, fastTrackTurns: 0, fastTrackIncome: 300000, fastTrackGoal: 350000 })
+        state.seed = 42
+        const rolled = run(state, { type: 'ROLL_DICE', actorId: 'player-human' })
+        if (wanted(rolled.players[0].position)) return rolled
+      }
+      throw new Error('no landing found')
+    }
+    const isBusiness = (position: number) => FAST_TRACK_BOARD[position] === 'business'
+    const isOthersDream = (position: number) => FAST_TRACK_BOARD[position] === 'dream' && FAST_TRACK_DREAM_BY_POSITION[position] !== createLivingGame().players[0].dream
+
+    expect(landOn(true, isBusiness).pendingDecision?.type).toBe('fast-track-business')
+    expect(landOn(false, isBusiness).pendingDecision).toBeNull()
+    expect(landOn(false, isOthersDream).pendingDecision).toBeNull()
+
+    const sponsor = landOn(true, isOthersDream)
+    expect(sponsor.pendingDecision).toMatchObject({ type: 'dream-sponsor', cost: 50000 })
+    sponsor.players[0].cash = 80000
+    const sponsored = run(sponsor, { type: 'SPONSOR_DREAM', actorId: 'player-human' })
+    expect(sponsored.players[0]).toMatchObject({ cash: 30000, dreamPreparation: 1 })
+    expect(sponsored.turnStage).toBe('awaiting-end')
+    expect(run(sponsor, { type: 'PASS_DREAM_SPONSOR', actorId: 'player-human' }).players[0].dreamPreparation ?? 0).toBe(0)
   })
 
   it('can sell a security to cover a cash shortfall', () => {

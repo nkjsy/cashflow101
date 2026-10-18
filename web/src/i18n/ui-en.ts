@@ -509,6 +509,17 @@ export const UI_EN = {
   掷骰前可执行一项策略: 'One strategy move before you roll',
   本回合的策略已执行: 'Strategy move used this turn',
 
+  '被动收入已经超过总支出。半个收益日的收入已经到账，现在就可以投资企业、扩张或购买梦想。': 'Your passive income now beats your expenses. Half a Revenue Day’s income has arrived, so you can invest in businesses, expand or buy your dream right away.',
+  '进入自由快道时先领取半个收益日的收入；之后每次经过收益日，再领取当前自由快道收入。': 'You collect half a Revenue Day payout as you enter the Freedom Lane, then a full one every time you pass a Revenue Day.',
+  他人的梦想: 'Another player’s dream',
+  '赞助这个梦想，你自己的梦想准备 +1。准备到 3/3 后，经过自己的梦想格也能买下梦想。': 'Sponsor this dream to add 1 to your own dream prep. At 3/3 you can buy your dream just by passing its space.',
+  赞助金额: 'Sponsorship',
+  梦想准备: 'Dream prep',
+  不赞助: 'Skip',
+  '赞助 {amount}': 'Sponsor for {amount}',
+  '距下一个收益日 {count} 格': '{count} {count|space|spaces} to Revenue Day',
+  '现金不足：扩张需 {expand}，风控需 {risk}，梦想准备需 {prep}。经过收益日后再来。': 'Not enough cash yet: expanding costs {expand}, risk control {risk}, dream prep {prep}. Come back after a Revenue Day.',
+
   // Daily challenge
   每日挑战: 'Daily Challenge',
   '今天 {date} · 全球同一副牌、同一组骰子': 'Today, {date} · same deck and dice for everyone',

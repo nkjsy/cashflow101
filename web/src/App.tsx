@@ -242,6 +242,13 @@ const spaceIcons: Record<SpaceType | FastTrackSpaceType, LucideIcon> = {
 
 const diceFaces = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6]
 
+const stepsToCashflowDay = (position: number) => {
+  for (let step = 1; step <= FAST_TRACK_BOARD.length; step += 1) {
+    if (FAST_TRACK_BOARD[(position + step) % FAST_TRACK_BOARD.length] === 'cashflow-day') return step
+  }
+  return FAST_TRACK_BOARD.length
+}
+
 const spaceDescriptions: Record<SpaceType, UiKey> = {
   opportunity: '抽取小买卖或大买卖，在查看首付、负债和现金流后决定是否投资。',
   payday: '领取一次月现金流：工资与被动收入减去总支出。经过或停在这里都会结算。',
@@ -1212,7 +1219,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
     { id: 'security-split', show: recentEvent(/拆股|反向拆股|一拆二|二合一/), title: '拆股改变数量，不创造价值', text: '拆股会按比例调整持有份数和单位成本，总成本基础不变；之后的市场报价按新份数计算。' },
     { id: 'insolvency', show: game.pendingDecision?.type === 'insolvency', title: '先恢复现金为非负', text: '借款会新增月支出。无法持续借款时，可以清算资产或宣布破产。' },
     { id: 'fast-track', show: human.phase === 'fast-track', title: '自由快道收入只来自被动收入', text: '退出时的被动收入取整到最近 $1,000，再乘 100；工资和每月现金流不参与。之后提高收入 {gain}，或买下自己的梦想即可获胜。', params: { gain: goalGain } },
-    { id: 'cashflow-day', show: recentEvent('经过自由快道收益日'), title: '收益日才发放自由快道收入', text: '进入自由快道时不会立刻获得现金；每次经过收益日，才领取当前自由快道收入。' },
+    { id: 'cashflow-day', show: recentEvent('经过自由快道收益日'), title: '收益日才发放自由快道收入', text: livingEconomy(game) ? '进入自由快道时先领取半个收益日的收入；之后每次经过收益日，再领取当前自由快道收入。' : '进入自由快道时不会立刻获得现金；每次经过收益日，才领取当前自由快道收入。' },
     { id: 'fast-business', show: game.pendingDecision?.type === 'fast-track-business', title: '企业可以组合和经营', text: '企业收入计入 {gain} 目标；两个不同产业解锁 5% 协同。可以规模化、韧性化、再投资或出售企业。', params: { gain: goalGain } },
     { id: 'fast-risk', show: recentEvent(/税务审计|商业诉讼|离婚财产分割|合伙人违约|重大维护|经营损失/), title: '自由快道仍有经营风险', text: '自由快道没有失业事件，出圈时失业险会自动终止。风险可能扣减现金或永久降低收益日收入；维护险和诉讼险仍可理赔。' },
     { id: 'dream', show: game.pendingDecision?.type === 'dream', title: '只有自己的梦想能获胜', text: '每个梦想有固定棋盘格和独立价格。抵达并支付你开局选择的梦想价格，会立即结束游戏。' },
@@ -1263,7 +1270,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
             <span className="celebration-icon"><PartyPopper /></span>
             <small>{t('财务自由达成')}</small>
             <h2 id="fast-track-celebration-title">{t('你进入了自由快道！')}</h2>
-            <p>{t('被动收入已经超过总支出。先体验一个完整的自由快道回合，随后企业投资与梦想购买将解锁。')}</p>
+            <p>{livingEconomy(game) ? t('被动收入已经超过总支出。半个收益日的收入已经到账，现在就可以投资企业、扩张或购买梦想。') : t('被动收入已经超过总支出。先体验一个完整的自由快道回合，随后企业投资与梦想购买将解锁。')}</p>
             <div className="celebration-metrics">
               <span><small>{t('收益日收入')}</small><strong>{money(human.fastTrackIncome)}</strong></span>
               <span><small>{t('收入目标')}</small><strong>{money(human.fastTrackGoal)}</strong></span>
@@ -1854,6 +1861,27 @@ function Decision({
     )
   }
 
+  if (decision?.type === 'dream-sponsor') {
+    const level = player.dreamPreparation ?? 0
+    return (
+      <div className="decision deal fast-deal">
+        <span className="decision-icon"><Star /></span>
+        <div className="decision-copy">
+          <small>{t('他人的梦想')}</small><h2>{tn(decision.dream)}</h2>
+          <p>{t('赞助这个梦想，你自己的梦想准备 +1。准备到 3/3 后，经过自己的梦想格也能买下梦想。')}</p>
+          <div className="metrics">
+            <span>{t('赞助金额')}<strong>{money(decision.cost)}</strong></span>
+            <span>{t('梦想准备')}<strong>{level}/3 → {Math.min(3, level + 1)}/3</strong></span>
+          </div>
+        </div>
+        <div className="decision-actions">
+          <button className="secondary" onClick={() => onCommand({ type: 'PASS_DREAM_SPONSOR', actorId: player.id })}>{t('不赞助')}</button>
+          <button className="primary compact" disabled={player.cash < decision.cost} title={player.cash < decision.cost ? t('现金不足') : undefined} onClick={() => onCommand({ type: 'SPONSOR_DREAM', actorId: player.id })}>{t('赞助 {amount}', { amount: money(decision.cost) })}</button>
+        </div>
+      </div>
+    )
+  }
+
   if (decision?.type === 'fast-track-business') {
     return (
       <div className="decision deal fast-deal">
@@ -1911,9 +1939,13 @@ function Decision({
     const jobLossCoverage = Math.round(insuranceCoverageRate(player, 'job-loss') * 100)
     const fastTrackInsuranceCoverage = Math.round(insuranceCoverageRate(player, fastTrackInsurance) * 100)
     const actionUsed = player.phase === 'fast-track' ? player.fastTrackStrategyUsed : player.strategyActionUsed
+    const fastTrackMoveAffordable = fastTrackBusinesses.length > 0
+      || (!expansionLimitReached && player.cash >= expansionCost)
+      || (!player.insurance && player.cash >= 25000)
+      || (dreamPreparation < 3 && player.cash >= 50000)
     return (
       <div className="decision ready">
-        <div className="ready-heading" tabIndex={mode === 'guided' ? 0 : undefined}><small>{t('第 {turn} 轮', { turn: game.turn })}{game.setup.strategyRulesVersion === 'strategy-v1' && ` · ${tn(currentEconomicCycle(game).name)}`}</small><h2>{game.setup.strategyRulesVersion === 'strategy-v1' ? actionUsed ? t('策略已执行，可以前进') : t('先经营，或直接前进') : t('准备前进')}</h2>{mode === 'guided' && <span className="strategy-heading-tooltip" role="tooltip">{game.setup.strategyRulesVersion === 'strategy-v1' ? t('{cycle} 每回合最多执行一项策略，之后仍可掷骰。', { cycle: tn(currentEconomicCycle(game).description) }) : t('经过发薪日会立即结算月现金流，停靠格随后生效。')}</span>}</div>
+        <div className="ready-heading" tabIndex={mode === 'guided' ? 0 : undefined}><small>{t('第 {turn} 轮', { turn: game.turn })}{game.setup.strategyRulesVersion === 'strategy-v1' && ` · ${tn(currentEconomicCycle(game).name)}`}{player.phase === 'fast-track' && ` · ${t('距下一个收益日 {count} 格', { count: stepsToCashflowDay(player.position) })}`}</small><h2>{game.setup.strategyRulesVersion === 'strategy-v1' ? actionUsed ? t('策略已执行，可以前进') : t('先经营，或直接前进') : t('准备前进')}</h2>{mode === 'guided' && <span className="strategy-heading-tooltip" role="tooltip">{game.setup.strategyRulesVersion === 'strategy-v1' ? t('{cycle} 每回合最多执行一项策略，之后仍可掷骰。', { cycle: tn(currentEconomicCycle(game).description) }) : t('经过发薪日会立即结算月现金流，停靠格随后生效。')}</span>}</div>
         <div className="turn-actions">
           {game.setup.strategyRulesVersion === 'strategy-v1' && player.phase === 'rat-race' && <div className="strategy-actions">
             <small className="strategy-label">{actionUsed ? t('本回合的策略已执行') : t('掷骰前可执行一项策略')}</small>
@@ -1936,7 +1968,11 @@ function Decision({
             })}{reviewPayment > 0 && reviewRelief === 0 ? t('偿还后贷款已结清，因此没有可减免的剩余贷款。') : t('减免额按 $100 取整，并受剩余贷款上限限制。')}</span></span>
           </div>}
           {game.setup.strategyRulesVersion === 'strategy-v1' && player.phase === 'fast-track' && <div className="strategy-actions fast-strategy-actions">
-            <small className="strategy-label">{actionUsed ? t('本回合的策略已执行') : t('掷骰前可执行一项策略')}</small>
+            <small className={`strategy-label ${!actionUsed && !fastTrackMoveAffordable ? 'strategy-label-short' : ''}`}>{actionUsed
+              ? t('本回合的策略已执行')
+              : fastTrackMoveAffordable
+                ? t('掷骰前可执行一项策略')
+                : t('现金不足：扩张需 {expand}，风控需 {risk}，梦想准备需 {prep}。经过收益日后再来。', { expand: money(expansionCost), risk: money(25000), prep: money(50000) })}</small>
             <label className="strategy-control" tabIndex={0}><select aria-label={t('选择自由快道企业')} value={selectedFastTrackBusinessId} disabled={actionUsed || fastTrackBusinesses.length === 0} onChange={(event) => setFastTrackBusinessId(event.target.value)}><option value="">{t('暂无企业')}</option>{fastTrackBusinesses.map((business) => <option key={business.id} value={business.id}>{tn(business.name)} · {business.sector ? t(fastTrackSectorLabels[business.sector]) : t('未分类')} · {money(business.cashFlow)}</option>)}</select><button disabled={actionUsed || !selectedFastTrackBusiness || Boolean(selectedFastTrackBusiness.upgrade) || player.cash < growthUpgradeCost} onClick={() => selectedFastTrackBusiness && onCommand({ type: 'FAST_TRACK_UPGRADE_BUSINESS', actorId: player.id, businessId: selectedFastTrackBusiness.id, branch: 'growth' })}>{t('规模化')}</button><button disabled={actionUsed || !selectedFastTrackBusiness || Boolean(selectedFastTrackBusiness.upgrade) || player.cash < resilienceUpgradeCost} onClick={() => selectedFastTrackBusiness && onCommand({ type: 'FAST_TRACK_UPGRADE_BUSINESS', actorId: player.id, businessId: selectedFastTrackBusiness.id, branch: 'resilience' })}>{t('韧性化')}</button><span className="strategy-tooltip" role="tooltip">{t('每家企业只能选择一次分支。规模化支付 {growthCost}，该企业收入提高 50%（+{growthGain}）；韧性化支付 {resilienceCost}，所有自由快道风险损失降低 25%，多家最高叠加到 75%。', { growthCost: money(growthUpgradeCost), growthGain: money(growthUpgradeGain), resilienceCost: money(resilienceUpgradeCost) })}</span></label>
             <span className="strategy-control" tabIndex={0}><button disabled={actionUsed || !selectedFastTrackBusiness || (selectedFastTrackBusiness.reinvestments ?? 0) >= FAST_TRACK_REINVEST_LIMIT || player.cash < reinvestCost} onClick={() => selectedFastTrackBusiness && onCommand({ type: 'FAST_TRACK_REINVEST', actorId: player.id, businessId: selectedFastTrackBusiness.id })}>{t('再投资')}</button><button disabled={actionUsed || !selectedFastTrackBusiness} onClick={() => selectedFastTrackBusiness && onCommand({ type: 'FAST_TRACK_SELL_BUSINESS', actorId: player.id, businessId: selectedFastTrackBusiness.id })}>{t('出售企业')}</button><span className="strategy-tooltip" role="tooltip">{t('再投资立即支付 {reinvestCost}，该企业收入提高 25%（+{reinvestGain}），每家最多 {limit} 次；多产业协同使成本降低 20%。出售企业立即回收 {proceeds}，并失去该企业全部 {income} 收入；多产业协同使回收率从 70% 提高到 80%。', { reinvestCost: money(reinvestCost), reinvestGain: money(reinvestGain), limit: FAST_TRACK_REINVEST_LIMIT, proceeds: money(saleProceeds), income: money(selectedFastTrackBusiness?.cashFlow ?? 0) })}</span></span>
             <span className="strategy-control" tabIndex={0}><button aria-describedby="expand-help" disabled={actionUsed || expansionLimitReached || player.cash < expansionCost} onClick={() => onCommand({ type: 'FAST_TRACK_EXPAND', actorId: player.id })}><TrendingUp />{t('扩张 {count}/{limit}', { count: player.fastTrackExpansions ?? 0, limit: FAST_TRACK_EXPANSION_LIMIT })}</button><span id="expand-help" className="strategy-tooltip" role="tooltip">{t('本局最多扩张 {limit} 次。支付 {cost}，收益日收入固定增加 {gain}，从 {from} 提升到 {to}。', { limit: FAST_TRACK_EXPANSION_LIMIT, cost: money(expansionCost), gain: money(FAST_TRACK_EXPANSION_GAIN), from: money(player.fastTrackIncome), to: money(expandedIncome) })}{expansionLimitReached ? t('扩张次数已用完，请通过购买自由快道企业继续增加收入。') : expandedIncome >= player.fastTrackGoal ? t('本次扩张会立即达到收入目标。') : t('扩张后距离收入目标还差 {amount}，仍需购买自由快道企业或恢复受损收入。', { amount: money(player.fastTrackGoal - expandedIncome) })}{!expansionLimitReached && player.cash < expansionCost ? t(' 当前现金还差 {amount}。', { amount: money(expansionCost - player.cash) }) : !expansionLimitReached ? t('执行后仍可掷骰。') : ''}</span></span>

@@ -68,6 +68,8 @@ export const currentEconomicCycle = (state: GameState) =>
   ECONOMIC_CYCLES[Math.floor((state.turn - 1) / 6) % ECONOMIC_CYCLES.length]
 
 export const FAST_TRACK_EXPANSION_GAIN = 6000
+export const FAST_TRACK_ARRIVAL_PAYOUT_RATE = 0.5
+export const DREAM_SPONSOR_COST = 50000
 export const FAST_TRACK_EXPANSION_LIMIT = 3
 export const FAST_TRACK_GROWTH_UPGRADE_COST_RATE = 0.5
 export const FAST_TRACK_RESILIENCE_UPGRADE_COST_RATE = 0.25
@@ -766,11 +768,21 @@ const resolvePreparedDreamPass = (state: GameState, playerId: string, from: numb
 const resolveFastTrackLanding = (state: GameState, playerId: string): GameState => {
   const player = state.players.find((candidate) => candidate.id === playerId)!
   const space = FAST_TRACK_BOARD[player.position]
-  if ((space === 'business' || space === 'dream') && (player.fastTrackTurns ?? 0) < 2) {
+  if ((space === 'business' || space === 'dream') && (player.fastTrackTurns ?? 0) < 2 && !livingEconomy(state)) {
     return appendLog(
       state,
       playerId,
       logText(space === 'business' ? '首次体验自由快道，本回合暂不开放企业投资。' : '首次体验自由快道，本回合暂不开放梦想购买。'),
+    )
+  }
+  // Living economy: another player's dream can be sponsored, which builds preparation for your own.
+  const othersDream = space === 'dream' && FAST_TRACK_DREAM_BY_POSITION[player.position] !== player.dream
+  if (othersDream && livingEconomy(state) && (player.dreamPreparation ?? 0) < 3) {
+    const dream = FAST_TRACK_DREAM_BY_POSITION[player.position]
+    return appendLog(
+      { ...state, pendingDecision: { type: 'dream-sponsor', playerId, dream, cost: DREAM_SPONSOR_COST } },
+      playerId,
+      logText('抵达梦想格“{dream}”：可以出资 ${cost} 赞助，自己的梦想准备 +1。', { dream: nm(dream), cost: DREAM_SPONSOR_COST }),
     )
   }
   if (space === 'business') {
@@ -860,8 +872,12 @@ const checkFastTrack = (state: GameState, playerId: string) => {
   const fastTrackIncome = roundedPassiveIncome * 100
   const jobLossInsuranceEnded = player.insurance === 'job-loss'
   const quick = state.setup.pace === 'quick'
+  // Living economy: half a Revenue Day pays out on arrival, so Freedom Lane moves are playable at once.
+  // A full payout let quick games end within a round of arriving (tuned with `npm run simulate`).
+  const arrivalPayout = livingEconomy(state) ? Math.round(fastTrackIncome * FAST_TRACK_ARRIVAL_PAYOUT_RATE / 1000) * 1000 : 0
   const nextState = updatePlayer(state, playerId, (current) => ({
     ...current,
+    cash: current.cash + arrivalPayout,
     phase: 'fast-track',
     fastTrackIncome,
     fastTrackGoal: fastTrackIncome + (quick ? QUICK_PACE.fastTrackGoalGain : STANDARD_FAST_TRACK_GOAL_GAIN),
@@ -873,7 +889,10 @@ const checkFastTrack = (state: GameState, playerId: string) => {
     nextState,
     playerId,
     logText('被动收入超过总支出，进入自由快道！{note}', {
-      note: jobLossInsuranceEnded ? logText(' 自由快道没有失业事件，失业保险自动终止。') : '',
+      note: logText('{payout}{insurance}', {
+        payout: arrivalPayout > 0 ? logText(' 半个收益日的收入 ${amount} 立即到账。', { amount: arrivalPayout }) : '',
+        insurance: jobLossInsuranceEnded ? logText(' 自由快道没有失业事件，失业保险自动终止。') : '',
+      }),
     }),
     'positive',
   )
@@ -1332,7 +1351,7 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     if (!decision || decision.type !== 'fast-track-business' || decision.playerId !== actor.id) {
       return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
     }
-    if ((actor.fastTrackTurns ?? 0) < 2) return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    if ((actor.fastTrackTurns ?? 0) < 2 && !livingEconomy(state)) return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
     if (actor.cash < decision.business.cost) return { ok: false, state, error: 'INSUFFICIENT_CASH' }
     const sourceId = decision.business.sourceId ?? decision.business.id
     const existingIds = new Set((actor.fastTrackBusinesses ?? []).map((business) => business.id))
@@ -1376,12 +1395,26 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     return { ok: true, state: finish({ ...state, pendingDecision: null, turnStage: 'awaiting-end' }) }
   }
 
+  if (command.type === 'SPONSOR_DREAM' || command.type === 'PASS_DREAM_SPONSOR') {
+    const decision = state.pendingDecision
+    if (!decision || decision.type !== 'dream-sponsor' || decision.playerId !== actor.id) {
+      return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    }
+    if (command.type === 'PASS_DREAM_SPONSOR') {
+      return { ok: true, state: finish(appendLog({ ...state, pendingDecision: null, turnStage: 'awaiting-end' }, actor.id, logText('没有赞助“{dream}”。', { dream: nm(decision.dream) }))) }
+    }
+    if (actor.cash < decision.cost) return { ok: false, state, error: 'INSUFFICIENT_CASH' }
+    const level = Math.min(3, (actor.dreamPreparation ?? 0) + 1)
+    const nextState = updatePlayer({ ...state, pendingDecision: null, turnStage: 'awaiting-end' }, actor.id, (player) => ({ ...player, cash: player.cash - decision.cost, dreamPreparation: level }))
+    return { ok: true, state: finish(appendLog(nextState, actor.id, logText('赞助“{dream}”，支付 ${cost}，自己的梦想准备提升至 {level}/3。', { dream: nm(decision.dream), cost: decision.cost, level }), 'positive')) }
+  }
+
   if (command.type === 'BUY_DREAM') {
     const decision = state.pendingDecision
     if (!decision || decision.type !== 'dream' || decision.playerId !== actor.id) {
       return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
     }
-    if ((actor.fastTrackTurns ?? 0) < 2) return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    if ((actor.fastTrackTurns ?? 0) < 2 && !livingEconomy(state)) return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
     if (actor.cash < decision.cost) return { ok: false, state, error: 'INSUFFICIENT_CASH' }
     let nextState = updatePlayer(state, actor.id, (player) => ({ ...player, cash: player.cash - decision.cost, phase: 'finished' }))
     nextState = appendLog(
