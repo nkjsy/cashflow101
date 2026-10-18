@@ -1628,3 +1628,72 @@ body {
   .hero-art polyline { stroke-dashoffset: 0; }
   .board-space:hover { transform: none; }
 }
+
+.strategy-label.strategy-label-short {
+  color: #8a5a00;
+  font-weight: 700;
+}
+
+/* Rival alert: opponents in the Freedom Lane and how far each is from winning. */
+.rival-alert {
+  padding: 9px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  color: #7a2a12;
+  background: #fde8dd;
+  border-bottom: 1px solid #f0b79c;
+}
+
+.rival-alert > svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.rival-alert ul {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  list-style: none;
+}
+
+.rival-alert li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-size: 11px;
+}
+
+.rival-alert strong {
+  font-size: 12px;
+}
+
+.rival-gap {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #7a2a12;
+  background: #fdf1ea;
+  font-size: 10px;
+}
+
+.rival-gap svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+@media (max-width: 780px) {
+  .rival-alert {
+    padding: 8px 16px;
+    justify-content: flex-start;
+  }
+}

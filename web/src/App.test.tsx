@@ -20,6 +20,21 @@ describe('cashflow app', () => {
   })
   afterEach(cleanup)
 
+  it('warns how close an opponent in the Freedom Lane is to winning', () => {
+    const game = createGame(1, 42, undefined, '教师', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'quick', 'living-v1')
+    game.currentPlayerIndex = 0
+    const rival = game.players[1]
+    Object.assign(rival, { phase: 'fast-track', position: 0, cash: 60000, fastTrackIncome: 310000, fastTrackGoal: 340000, fastTrackGoalGain: 40000 })
+    localStorage.setItem('cashflow-lab-save-v1', JSON.stringify(game))
+    localStorage.setItem('cashflow-lab-guides', JSON.stringify(['start']))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /继续上次游戏/ }))
+    const alert = screen.getByRole('status', { name: '对手冲刺提醒' })
+    expect(alert).toHaveTextContent(/在自由快道/)
+    expect(alert).toHaveTextContent(/收入还差 US\$30,000 即获胜/)
+    expect(screen.getByText(/获胜还差：收入 US\$30,000/)).toHaveClass('rival-gap')
+  })
+
   it('rolls with R, ends the turn with E and ignores keys while typing', () => {
     const game = createGame(1, 42, undefined, '教师', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'standard', 'living-v1')
     game.currentPlayerIndex = 0

@@ -1,7 +1,7 @@
 import { canTakeLoan, executeCommand, monthlyCashFlow, totalExpenses } from '../game-core/engine'
 import { BIG_DEALS } from '../game-core/data'
 import { evaluateOpportunity, getAiPolicy, shouldBuyFastTrackBusiness } from '../game-core/ai-policy'
-import { chooseCreditCardRepayment, chooseDealOfferResponse, chooseDoodadPayment, chooseInsolvencySecuritySale, choosePassCommand, choosePreRollStrategyCommand } from '../game-core/ai'
+import { chooseCreditCardRepayment, chooseDealOfferResponse, chooseDoodadPayment, chooseDreamSponsor, chooseInsolvencySecuritySale, choosePassCommand, choosePreRollStrategyCommand } from '../game-core/ai'
 import type { AssetKind, DealSize, GameCommand, GameState, LongTermGoalId, PlayerState } from '../game-core/types'
 
 type PurchaseCounts<Key extends string> = Record<Key, number>
@@ -125,6 +125,7 @@ const commandForDecision = (state: GameState): GameCommand | null => {
     return canBuy ? { type: 'BUY_OPPORTUNITY', actorId: player.id } : choosePassCommand(state, player, opportunity, evaluation.attractive)
   }
   if (decision.type === 'deal-offer') return chooseDealOfferResponse(state, player, decision.opportunity)
+  if (decision.type === 'dream-sponsor') return chooseDreamSponsor(player, decision.cost)
   if (decision.type === 'doodad') return chooseDoodadPayment(state, player, decision.cost)
   if (decision.type === 'charity') {
     return {
