@@ -7,6 +7,7 @@ import { createGame, executeCommand, totalExpenses } from './game-core/engine'
 import { chooseAutoplayCommand } from './simulation/simulator'
 import { setLanguage } from './i18n'
 import { platform, resetAdPacing, setPlatform } from './platform'
+import { createDailyGame, dailyDate, loadDailyResults } from './daily'
 
 const { playSound } = vi.hoisted(() => ({ playSound: vi.fn() }))
 vi.mock('./game-audio', () => ({ GameAudio: class { play = playSound; unlock = vi.fn() } }))
@@ -18,6 +19,26 @@ describe('cashflow app', () => {
     playSound.mockClear()
   })
   afterEach(cleanup)
+
+  it('starts today’s daily challenge and records the finished result', () => {
+    const today = dailyDate()
+    const { unmount } = render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: '开始今日挑战' }))
+
+    expect(screen.getByText('每日挑战', { selector: '.daily-tag' })).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('cashflow-lab-save-v1')!).setup).toMatchObject({ dailyChallenge: today, pace: 'quick', aiCount: 2 })
+    unmount()
+
+    let finished = createDailyGame(today)
+    for (let step = 0; step < 6000 && !finished.winnerId; step += 1) finished = executeCommand(finished, chooseAutoplayCommand(finished)).state
+    localStorage.setItem('cashflow-lab-save-v1', JSON.stringify(finished))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /继续上次游戏/ }))
+
+    expect(screen.getByRole('button', { name: '复制分享文字' })).toBeInTheDocument()
+    expect(screen.getByText('新纪录！')).toBeInTheDocument()
+    expect(loadDailyResults()[today]).toMatchObject({ won: finished.winnerId === 'player-human', rounds: finished.turn })
+  })
 
   it('starts a guided or standard game with one to three AI opponents', () => {
     const { container } = render(<App />)

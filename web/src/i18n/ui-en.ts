@@ -446,6 +446,26 @@ export const UI_EN = {
   '股票和基金按当前行情买入，可以在自己的回合随时按市价卖出。增长周期整体走强，高利率周期整体走弱。': 'Stocks and funds are bought at today’s price and can be sold at market on any of your turns. Growth cycles lift prices; high-interest cycles drag them down.',
   信用卡与行情: 'Credit cards and prices',
 
+  // Daily challenge
+  每日挑战: 'Daily Challenge',
+  '今天 {date} · 全球同一副牌、同一组骰子': 'Today, {date} · same deck and dice for everyone',
+  '快速局 · 2 名 AI · {profession} · 梦想：{dream}': 'Quick game · 2 AIs · {profession} · Dream: {dream}',
+  '今日最佳：第 {rounds} 轮获胜': 'Today’s best: won in round {rounds}',
+  '今日最佳：未获胜 · 评分 {score}': 'Today’s best: no win · score {score}',
+  今天还没有挑战成绩: 'No result yet today',
+  '连胜 {count} 天': '{count}-day streak',
+  ' · 连胜 {count} 天': ' · {count}-day streak',
+  再挑战一次: 'Try again',
+  开始今日挑战: 'Play today’s challenge',
+  '第 {rounds} 轮获胜': 'Won in round {rounds}',
+  '未获胜 · 评分 {score}': 'No win · score {score}',
+  '新纪录！': 'New best!',
+  已复制: 'Copied',
+  复制分享文字: 'Copy result',
+  分享文字: 'Result to share',
+  'Ratrace 每日挑战 {date}：第 {rounds} 轮实现财务自由{streak}': 'Ratrace Daily Challenge {date}: financially free in round {rounds}{streak}',
+  'Ratrace 每日挑战 {date}：评分 {score}/100{streak}': 'Ratrace Daily Challenge {date}: scored {score}/100{streak}',
+
   // Post-game report
   局后报告: 'Game report',
   '第 {round} 轮出圈': 'Out of the Rat Race in round {round}',

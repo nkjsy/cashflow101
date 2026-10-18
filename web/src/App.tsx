@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Baby,
   BanknoteArrowDown,
   Bot,
   BriefcaseBusiness,
   Building2,
+  CalendarDays,
   Calculator,
   ChartCandlestick,
+  Copy,
   Check,
   ChevronDown,
   ChevronRight,
@@ -52,6 +54,7 @@ import './game-polish.css'
 import { GameAudio } from './game-audio'
 import { useWalkingPieces } from './board-motion'
 import { GameReport } from './GameReport'
+import { createDailyGame, dailyDate, dailyResultOf, dailyStreak, isBetterDailyResult, loadDailyResults, recordDailyResult } from './daily'
 import { sessionStore, storage } from './platform/storage'
 import { breakAdDue, platform, showBreakAd } from './platform'
 import { formatLog, getLanguage, money, setLanguage, t, tn, tx, type Language } from './i18n'
@@ -286,6 +289,7 @@ const loadGame = (): GameState | null => {
         strategyRulesVersion: game.setup?.strategyRulesVersion ?? 'legacy',
         ...(game.setup?.pace ? { pace: game.setup.pace } : {}),
         ...(game.setup?.economyRulesVersion ? { economyRulesVersion: game.setup.economyRulesVersion } : {}),
+        ...(game.setup?.dailyChallenge ? { dailyChallenge: game.setup.dailyChallenge } : {}),
       },
       commandHistory: game.commandHistory ?? [],
       pendingDecision,
@@ -627,8 +631,14 @@ function App() {
     setSpectating(false)
   }
 
+  const launchGame = (next: GameState) => {
+    setGame(next)
+    setSpectating(false)
+    setShowStart(false)
+  }
+
   const startGame = () => {
-    setGame(createGame(
+    launchGame(createGame(
       aiCount,
       Date.now() >>> 0,
       dream,
@@ -643,8 +653,20 @@ function App() {
       pace,
       'living-v1',
     ))
-    setSpectating(false)
-    setShowStart(false)
+  }
+
+  // Starting another game is a natural break for a midgame ad; overwriting a save needs a confirmation.
+  const requestStart = (start: () => void) => {
+    const begin = () => playedThisSession.current ? afterBreakAd(start) : start()
+    if (!game) {
+      begin()
+      return
+    }
+    setConfirmation({
+      message: t('开始新游戏将覆盖当前存档，是否继续？'),
+      confirmLabel: t('开始新游戏'),
+      onConfirm: begin,
+    })
   }
 
   const confirmDialog = confirmation && (
@@ -681,19 +703,8 @@ function App() {
         )}
         onDream={setDream}
         onProfession={setProfession}
-        onStart={() => {
-          // Starting another game is a natural break for a midgame ad.
-          const start = () => playedThisSession.current ? afterBreakAd(startGame) : startGame()
-          if (!game) {
-            start()
-            return
-          }
-          setConfirmation({
-            message: t('开始新游戏将覆盖当前存档，是否继续？'),
-            confirmLabel: t('开始新游戏'),
-            onConfirm: start,
-          })
-        }}
+        onStart={() => requestStart(startGame)}
+        onDaily={() => requestStart(() => launchGame(createDailyGame(dailyDate())))}
         onResume={() => setShowStart(false)}
       />
       {confirmDialog}
@@ -775,6 +786,7 @@ type StartProps = {
   onDream: (dream: string) => void
   onProfession: (profession: string) => void
   onStart: () => void
+  onDaily: () => void
   onResume: () => void
 }
 
@@ -787,7 +799,7 @@ function LanguageToggle({ language, onLanguage }: { language: Language; onLangua
   )
 }
 
-function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalities, dream, profession, hasSave, onMode, onPace, onLanguage, onAi, onAiDifficulty, onAiPersonality, onDream, onProfession, onStart, onResume }: StartProps) {
+function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalities, dream, profession, hasSave, onMode, onPace, onLanguage, onAi, onAiDifficulty, onAiPersonality, onDream, onProfession, onStart, onDaily, onResume }: StartProps) {
   const saveNotice = sessionStore.get('cashflow-lab-save-notice')
   return (
     <main className="start-shell">
@@ -815,6 +827,7 @@ function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalit
               )}
             </div>
           </div>
+          <DailyChallengeCard onDaily={onDaily} />
           <div className="setup-main-grid">
             <section className="setup-section game-settings" aria-labelledby="game-settings-title">
               <div className="section-heading">
@@ -910,6 +923,69 @@ function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalit
         </div>
       </section>
     </main>
+  )
+}
+
+function DailyChallengeCard({ onDaily }: { onDaily: () => void }) {
+  const date = dailyDate()
+  const preview = useMemo(() => createDailyGame(date).players[0], [date])
+  const results = loadDailyResults()
+  const best = results[date]
+  const streak = dailyStreak(results, date)
+  return (
+    <section className="daily-card" aria-labelledby="daily-title">
+      <span className="daily-icon"><CalendarDays /></span>
+      <div className="daily-copy">
+        <small>{t('今天 {date} · 全球同一副牌、同一组骰子', { date })}</small>
+        <strong id="daily-title">{t('每日挑战')}</strong>
+        <p>{t('快速局 · 2 名 AI · {profession} · 梦想：{dream}', { profession: tn(preview.profession), dream: tn(preview.dream) })}</p>
+        <p className="daily-best">
+          {best ? best.won ? t('今日最佳：第 {rounds} 轮获胜', { rounds: best.rounds }) : t('今日最佳：未获胜 · 评分 {score}', { score: best.score }) : t('今天还没有挑战成绩')}
+          {streak > 0 && <b>{t('连胜 {count} 天', { count: streak })}</b>}
+        </p>
+      </div>
+      <button className="primary" onClick={onDaily}>{best ? t('再挑战一次') : t('开始今日挑战')}</button>
+    </section>
+  )
+}
+
+// Records the finished daily challenge and offers a spoiler-free line to share.
+function DailySummary({ game }: { game: GameState }) {
+  const date = game.setup.dailyChallenge!
+  const result = dailyResultOf(game)
+  // Compare with the best from before this game; recording is idempotent and may run more than once.
+  const [previousBest] = useState(() => loadDailyResults()[date])
+  const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle')
+  // Depend on the fields, not the object: AIs may keep playing after a bankruptcy, rebuilding an equal result.
+  const won = result?.won
+  const rounds = result?.rounds
+  const score = result?.score
+  useEffect(() => {
+    if (won !== undefined && rounds !== undefined && score !== undefined) recordDailyResult(date, { won, rounds, score })
+  }, [date, won, rounds, score])
+  if (!result) return null
+  const newBest = isBetterDailyResult(result, previousBest)
+  const streak = dailyStreak(loadDailyResults(), date)
+  const streakText = streak > 1 ? t(' · 连胜 {count} 天', { count: streak }) : ''
+  const shareText = result.won
+    ? t('Ratrace 每日挑战 {date}：第 {rounds} 轮实现财务自由{streak}', { date, rounds: result.rounds, streak: streakText })
+    : t('Ratrace 每日挑战 {date}：评分 {score}/100{streak}', { date, score: result.score, streak: streakText })
+  const copy = () => {
+    try {
+      void navigator.clipboard.writeText(shareText).then(() => setCopied('copied'), () => setCopied('failed'))
+    } catch {
+      setCopied('failed')
+    }
+  }
+  return (
+    <section className="daily-summary" aria-label={t('每日挑战')}>
+      <div>
+        <small><CalendarDays />{t('每日挑战')} · {date}</small>
+        <strong>{result.won ? t('第 {rounds} 轮获胜', { rounds: result.rounds }) : t('未获胜 · 评分 {score}', { score: result.score })}{newBest && <b>{t('新纪录！')}</b>}</strong>
+      </div>
+      <button className="secondary" onClick={copy}><Copy />{copied === 'copied' ? t('已复制') : t('复制分享文字')}</button>
+      {copied === 'failed' && <input className="daily-share-text" readOnly value={shareText} aria-label={t('分享文字')} onFocus={(event) => event.currentTarget.select()} />}
+    </section>
   )
 }
 
@@ -1077,7 +1153,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
   return (
     <main className="game-shell">
       <section className={`progress-band ${human.phase === 'fast-track' ? 'fast-track-phase' : ''}`}>
-        <div className="brand-compact top-brand"><CircleDollarSign /><strong>Ratrace</strong></div>
+        <div className="brand-compact top-brand"><CircleDollarSign /><strong>Ratrace</strong>{game.setup.dailyChallenge && <span className="daily-tag" title={game.setup.dailyChallenge}>{t('每日挑战')}</span>}</div>
         <div className="track-toggle top-track-toggle" role="group" aria-label={t('切换棋盘')}>
           <button className={viewedPhase === 'rat-race' ? 'active' : ''} aria-pressed={viewedPhase === 'rat-race'} onClick={() => setViewedPhase('rat-race')}>{t('打工圈')}</button>
           <button className={viewedPhase === 'fast-track' ? 'active' : ''} aria-pressed={viewedPhase === 'fast-track'} onClick={() => setViewedPhase('fast-track')}>{t('自由快道')}</button>
@@ -1144,6 +1220,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
                 ? t('破产会淘汰当前玩家；你的本局操作已经结束。{outcome}', { outcome: winner ? t('{name} 成为最后未破产玩家并获胜。', { name: tn(winner.name) }) : t('其他 AI 将继续对局。') })
                 : t('本局已经产生胜者，所有游戏命令都已停止。')}
             </p>
+            {game.setup.dailyChallenge && <DailySummary game={game} />}
             <GameReport game={game} />
             <div className="final-standing">
               {rankedPlayers.map((player, rank) => {

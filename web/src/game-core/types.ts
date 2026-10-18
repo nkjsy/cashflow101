@@ -187,6 +187,8 @@ export type GameState = {
     strategyRulesVersion?: StrategyRulesVersion
     pace?: GamePace
     economyRulesVersion?: EconomyRulesVersion
+    // UTC date of the daily challenge this game belongs to; the engine ignores it.
+    dailyChallenge?: string
   }
   commandHistory: GameCommand[]
   revision: number
