@@ -881,6 +881,56 @@ const checkFastTrack = (state: GameState, playerId: string) => {
 
 const finish = (state: GameState) => ({ ...state, revision: state.revision + 1 })
 
+// Pays the down payment, adds the asset and settles goals and the Freedom Lane check.
+const acquireOpportunity = (state: GameState, playerId: string, opportunity: Opportunity): GameState => {
+  const buyer = state.players.find((player) => player.id === playerId)!
+  const passiveIncomeBefore = buyer.passiveIncome
+  let nextState = updatePlayer(state, playerId, (player) => {
+    const sourceId = opportunity.id
+    const existingIds = new Set(player.assets.map((asset) => asset.id))
+    let instanceNumber = 1
+    while (existingIds.has(`${sourceId}#${instanceNumber}`)) instanceNumber += 1
+    const asset = normalizedAsset({
+      ...opportunity,
+      id: `${sourceId}#${instanceNumber}`,
+      sourceId,
+    })
+    const finances = recalculateAssets(player, [...player.assets, asset])
+    return { ...player, cash: player.cash - opportunity.downPayment, ...finances }
+  })
+  const passiveIncomeAfter = nextState.players.find((player) => player.id === playerId)!.passiveIncome
+  const totalIncomeGain = passiveIncomeAfter - passiveIncomeBefore
+  const portfolioIncomeGain = totalIncomeGain - opportunity.cashFlow
+  const incomeMessage = portfolioIncomeGain > 0
+    ? logText('被动收入实际 +${total}/月（资产本身 +${base}，组合加成 +${bonus}）。', { total: totalIncomeGain, base: opportunity.cashFlow, bonus: portfolioIncomeGain })
+    : logText('被动收入 +${amount}/月。', { amount: opportunity.cashFlow })
+  nextState = appendLog(
+    nextState,
+    playerId,
+    logText('购买 {asset}，{income}', { asset: nm(opportunity.name), income: incomeMessage }),
+    'positive',
+  )
+  nextState = completeLongTermGoal(nextState, playerId)
+  return checkFastTrack(nextState, playerId)
+}
+
+export const dealTransferFee = (opportunity: Opportunity) =>
+  Math.max(500, Math.round(opportunity.downPayment * 0.1 / 100) * 100)
+
+// Other players still in the Rat Race, in seat order after the seller.
+const transferResponders = (state: GameState, sellerId: string) => {
+  const sellerIndex = state.players.findIndex((player) => player.id === sellerId)
+  return Array.from({ length: state.players.length - 1 }, (_, offset) => state.players[(sellerIndex + offset + 1) % state.players.length])
+    .filter((player) => !player.bankrupt && player.phase === 'rat-race')
+    .map((player) => player.id)
+}
+
+// Property and business deals can be passed on in the living economy; securities cannot.
+export const canTransferOpportunity = (state: GameState, sellerId: string, opportunity: Opportunity) =>
+  livingEconomy(state)
+  && (opportunity.kind === 'real-estate' || opportunity.kind === 'business')
+  && transferResponders(state, sellerId).length > 0
+
 const reachesFastTrackIncomeVictory = (_state: GameState, player: PlayerState, income: number) =>
   income >= player.fastTrackGoal
 
@@ -975,35 +1025,46 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     if (currentPlayer.cash < decision.opportunity.downPayment) {
       return { ok: false, state, error: 'INSUFFICIENT_CASH' }
     }
-    const passiveIncomeBefore = currentPlayer.passiveIncome
-    let nextState = updatePlayer(state, currentPlayer.id, (player) => {
-      const sourceId = decision.opportunity.id
-      const existingIds = new Set(player.assets.map((asset) => asset.id))
-      let instanceNumber = 1
-      while (existingIds.has(`${sourceId}#${instanceNumber}`)) instanceNumber += 1
-      const asset = normalizedAsset({
-        ...decision.opportunity,
-        id: `${sourceId}#${instanceNumber}`,
-        sourceId,
-      })
-      const finances = recalculateAssets(player, [...player.assets, asset])
-      return { ...player, cash: player.cash - decision.opportunity.downPayment, ...finances }
-    })
-    const passiveIncomeAfter = nextState.players.find((player) => player.id === currentPlayer.id)!.passiveIncome
-    const totalIncomeGain = passiveIncomeAfter - passiveIncomeBefore
-    const portfolioIncomeGain = totalIncomeGain - decision.opportunity.cashFlow
-    const incomeMessage = portfolioIncomeGain > 0
-      ? logText('被动收入实际 +${total}/月（资产本身 +${base}，组合加成 +${bonus}）。', { total: totalIncomeGain, base: decision.opportunity.cashFlow, bonus: portfolioIncomeGain })
-      : logText('被动收入 +${amount}/月。', { amount: decision.opportunity.cashFlow })
-    nextState = appendLog(
-      { ...nextState, pendingDecision: null, turnStage: 'awaiting-end' },
-      currentPlayer.id,
-      logText('购买 {asset}，{income}', { asset: nm(decision.opportunity.name), income: incomeMessage }),
-      'positive',
-    )
-    nextState = completeLongTermGoal(nextState, currentPlayer.id)
-    nextState = checkFastTrack(nextState, currentPlayer.id)
-    return { ok: true, state: finish(nextState) }
+    return { ok: true, state: finish(acquireOpportunity({ ...state, pendingDecision: null, turnStage: 'awaiting-end' }, currentPlayer.id, decision.opportunity)) }
+  }
+
+  if (command.type === 'TRANSFER_OPPORTUNITY') {
+    const decision = state.pendingDecision
+    if (!decision || decision.type !== 'opportunity' || decision.playerId !== actor.id || !canTransferOpportunity(state, actor.id, decision.opportunity)) {
+      return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    }
+    const fee = dealTransferFee(decision.opportunity)
+    const responderIds = transferResponders(state, actor.id)
+    return {
+      ok: true,
+      state: finish(appendLog(
+        { ...state, pendingDecision: { type: 'deal-offer', playerId: responderIds[0], sellerId: actor.id, opportunity: decision.opportunity, fee, responderIds } },
+        actor.id,
+        logText('把 {deal} 转让给其他玩家，接手者需支付中介费 ${fee}。', { deal: nm(decision.opportunity.name), fee }),
+      )),
+    }
+  }
+
+  if (command.type === 'ACCEPT_DEAL_OFFER' || command.type === 'DECLINE_DEAL_OFFER') {
+    const decision = state.pendingDecision
+    if (!decision || decision.type !== 'deal-offer' || decision.playerId !== actor.id) {
+      return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    }
+    const deal = decision.opportunity
+    if (command.type === 'DECLINE_DEAL_OFFER') {
+      const [, ...remaining] = decision.responderIds
+      let nextState = appendLog(state, actor.id, logText('放弃接手 {deal}。', { deal: nm(deal.name) }))
+      nextState = remaining.length > 0
+        ? { ...nextState, pendingDecision: { ...decision, playerId: remaining[0], responderIds: remaining } }
+        : appendLog({ ...nextState, pendingDecision: null, turnStage: 'awaiting-end' }, decision.sellerId, logText('无人接手 {deal}，机会作废。', { deal: nm(deal.name) }))
+      return { ok: true, state: finish(nextState) }
+    }
+    if (actor.cash < deal.downPayment + decision.fee) return { ok: false, state, error: 'INSUFFICIENT_CASH' }
+    let nextState = updatePlayer({ ...state, pendingDecision: null, turnStage: 'awaiting-end' }, actor.id, (player) => ({ ...player, cash: player.cash - decision.fee }))
+    nextState = updatePlayer(nextState, decision.sellerId, (player) => ({ ...player, cash: player.cash + decision.fee }))
+    const seller = state.players.find((player) => player.id === decision.sellerId)!
+    nextState = appendLog(nextState, actor.id, logText('接手 {deal}，向 {seller} 支付中介费 ${fee}。', { deal: nm(deal.name), seller: nm(seller.name), fee: decision.fee }))
+    return { ok: true, state: finish(acquireOpportunity(nextState, actor.id, deal)) }
   }
 
   if (command.type === 'PASS_OPPORTUNITY') {

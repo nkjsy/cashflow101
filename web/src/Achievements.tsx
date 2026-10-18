@@ -68,7 +68,7 @@ export function AchievementsPanel({ onClose }: { onClose: () => void }) {
 }
 
 // Records the achievements earned in a finished game and shows the new ones.
-export function AchievementSummary({ game }: { game: GameState }) {
+export function AchievementSummary({ game, onCelebrate }: { game: GameState; onCelebrate?: () => void }) {
   // Snapshot before recording, so a second effect run (StrictMode, remounts) cannot hide what is new.
   const [before] = useState(loadAchievements)
   const date = game.setup.dailyChallenge
@@ -81,8 +81,8 @@ export function AchievementSummary({ game }: { game: GameState }) {
   const earned = useMemo(() => evaluateAchievements(game, { dailyStreak: streak }), [game, streak])
   const earnedKey = earned.join(',')
   useEffect(() => {
-    if (earnedKey) recordAchievements(earnedKey.split(',') as AchievementId[])
-  }, [earnedKey])
+    if (earnedKey && recordAchievements(earnedKey.split(',') as AchievementId[]).length > 0) onCelebrate?.()
+  }, [earnedKey, onCelebrate])
   const fresh = earned.filter((id) => !before[id])
   if (fresh.length === 0) return null
   const beforeCount = Object.keys(before).length

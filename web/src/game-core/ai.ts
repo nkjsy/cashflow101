@@ -1,7 +1,7 @@
-import { FAST_TRACK_EXPANSION_GAIN, FAST_TRACK_EXPANSION_LIMIT, FAST_TRACK_GROWTH_UPGRADE_RATE, FAST_TRACK_REINVEST_LIMIT, FAST_TRACK_REINVEST_RATE, assetUpgradeCost, canChargeCreditCard, canTakeLoan, executeCommand, fastTrackExpansionCost, fastTrackReinvestCost, fastTrackSaleProceeds, fastTrackUpgradeCost, insuranceCost, livingEconomy, logEntry, logText, securityForAsset, securityPrice } from './engine'
+import { FAST_TRACK_EXPANSION_GAIN, FAST_TRACK_EXPANSION_LIMIT, FAST_TRACK_GROWTH_UPGRADE_RATE, FAST_TRACK_REINVEST_LIMIT, FAST_TRACK_REINVEST_RATE, assetUpgradeCost, canChargeCreditCard, canTakeLoan, canTransferOpportunity, dealTransferFee, executeCommand, fastTrackExpansionCost, fastTrackReinvestCost, fastTrackSaleProceeds, fastTrackUpgradeCost, insuranceCost, livingEconomy, logEntry, logText, securityForAsset, securityPrice } from './engine'
 import { BIG_DEALS } from './data'
 import { evaluateOpportunity, getAiPolicy, shouldBuyFastTrackBusiness } from './ai-policy'
-import type { GameCommand, GameState, PlayerState } from './types'
+import type { GameCommand, GameState, Opportunity, PlayerState } from './types'
 
 const minimumBigDealDownPayment = Math.min(...BIG_DEALS.map((deal) => deal.downPayment))
 
@@ -38,6 +38,22 @@ export const chooseDoodadPayment = (state: GameState, player: PlayerState, cost:
   actorId: player.id,
   method: player.cash - cost >= getAiPolicy(state, player).reserve || !canChargeCreditCard(player, cost) ? 'cash' : 'credit',
 })
+
+// A good deal the player cannot afford is worth more passed on for a fee than thrown away,
+// as long as someone else (whose finances are public) could actually pay for it.
+export const choosePassCommand = (state: GameState, player: PlayerState, opportunity: Opportunity, attractive: boolean): GameCommand => {
+  const price = opportunity.downPayment + dealTransferFee(opportunity)
+  const someoneCanPay = state.players.some((other) => other.id !== player.id && !other.bankrupt && other.phase === 'rat-race' && other.cash >= price)
+  return attractive && someoneCanPay && canTransferOpportunity(state, player.id, opportunity)
+    ? { type: 'TRANSFER_OPPORTUNITY', actorId: player.id }
+    : { type: 'PASS_OPPORTUNITY', actorId: player.id }
+}
+
+export const chooseDealOfferResponse = (state: GameState, player: PlayerState, opportunity: Opportunity): GameCommand => {
+  const evaluation = evaluateOpportunity(state, player, opportunity)
+  const affordable = player.cash - opportunity.downPayment - dealTransferFee(opportunity) >= evaluation.reserve
+  return { type: evaluation.attractive && affordable ? 'ACCEPT_DEAL_OFFER' : 'DECLINE_DEAL_OFFER', actorId: player.id }
+}
 
 export const chooseCreditCardRepayment = (state: GameState, player: PlayerState): GameCommand | null => {
   const debt = player.creditCardDebt ?? 0
@@ -156,10 +172,11 @@ const playBasicAiTurnInternal = (state: GameState): GameState => {
     }
     const updatedPlayer = nextState.players.find((candidate) => candidate.id === player.id) ?? player
     const shouldBuy = evaluation.attractive && updatedPlayer.cash >= opportunity.downPayment
-    nextState = apply(nextState, {
-      type: shouldBuy ? 'BUY_OPPORTUNITY' : 'PASS_OPPORTUNITY',
-      actorId: player.id,
-    })
+    nextState = apply(nextState, shouldBuy
+      ? { type: 'BUY_OPPORTUNITY', actorId: player.id }
+      : choosePassCommand(nextState, updatedPlayer, opportunity, evaluation.attractive))
+  } else if (decision?.type === 'deal-offer') {
+    nextState = apply(nextState, chooseDealOfferResponse(nextState, player, decision.opportunity))
   } else if (decision?.type === 'doodad') {
     nextState = apply(nextState, chooseDoodadPayment(nextState, player, decision.cost))
   } else if (decision?.type === 'charity') {
@@ -211,6 +228,8 @@ const playBasicAiTurnInternal = (state: GameState): GameState => {
   }
 
   if (nextState.winnerId || nextState.turnStage !== 'awaiting-end') return nextState
+  // An AI answering someone else's decision must not settle the current player's turn for them.
+  if (player.id !== nextState.players[nextState.currentPlayerIndex].id) return nextState
   const updatedPlayer = nextState.players[nextState.currentPlayerIndex]
   const reserve = getAiPolicy(nextState, updatedPlayer).reserve
   const repayable = Math.min(
@@ -238,6 +257,7 @@ const explainAiDecision = (state: GameState) => {
   if (decision.type === 'deal-choice') return logText('{style}，先保留现金储备，再判断是否负担得起大买卖最低首付。', { style })
   if (decision.type === 'opportunity') return logText('{style}，综合回报率、现金储备和可持续借款；基金与存单不使用贷款。', { style })
   if (decision.type === 'market') return logText('{style}，报价达到成本时卖出，现金紧张时也会折价换取流动性。', { style })
+  if (decision.type === 'deal-offer') return logText('{style}，机会有吸引力且付完首付和中介费后仍有现金储备时才接手。', { style })
   if (decision.type === 'doodad') return logText('{style}，现金充足时直接付款，否则刷信用卡保留现金储备。', { style })
   if (decision.type === 'charity') return logText('{style}，捐赠后仍达到目标现金储备才换取三回合双骰。', { style })
   if (decision.type === 'insolvency') return logText('先尝试可持续借款，再清算首付最高的资产，最后才宣布破产。')

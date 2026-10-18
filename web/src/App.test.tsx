@@ -20,6 +20,49 @@ describe('cashflow app', () => {
   })
   afterEach(cleanup)
 
+  it('rolls with R, ends the turn with E and ignores keys while typing', () => {
+    const game = createGame(1, 42, undefined, '教师', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'standard', 'living-v1')
+    game.currentPlayerIndex = 0
+    localStorage.setItem('cashflow-lab-save-v1', JSON.stringify(game))
+    localStorage.setItem('cashflow-lab-guides', JSON.stringify(['start']))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /继续上次游戏/ }))
+    const history = () => JSON.parse(localStorage.getItem('cashflow-lab-save-v1')!).commandHistory.map((command: { type: string }) => command.type)
+
+    fireEvent.keyDown(screen.getAllByRole('combobox')[0], { key: 'r' })
+    expect(history()).toEqual([])
+    fireEvent.keyDown(window, { key: 'r' })
+    expect(history()).toEqual(['ROLL_DICE'])
+    // E only ends the turn once nothing is left to decide.
+    const awaitingEnd = JSON.parse(localStorage.getItem('cashflow-lab-save-v1')!).turnStage === 'awaiting-end'
+    fireEvent.keyDown(window, { key: 'e' })
+    expect(history()).toEqual(awaitingEnd ? ['ROLL_DICE', 'END_TURN'] : ['ROLL_DICE'])
+  })
+
+  it('offers the human a deal another player passed on, and hides AI reasoning by default', () => {
+    const game = createGame(1, 42, undefined, '教师', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'standard', 'living-v1')
+    game.currentPlayerIndex = 1
+    game.turnStage = 'awaiting-decision'
+    game.players[0].cash = 20000
+    const deal = { id: 'asset-neighborhood-laundry', name: '社区洗衣店', kind: 'business' as const, dealSize: 'small' as const, description: '稳定的社区服务生意，设备已经完成更新。', downPayment: 4000, mortgage: 16000, cashFlow: 560 }
+    game.pendingDecision = { type: 'deal-offer', playerId: 'player-human', sellerId: 'player-ai-1', opportunity: deal, fee: 500, responderIds: ['player-human'] }
+    game.logs = [...game.logs, { id: 1, playerId: 'player-ai-1', message: 'AI 判断：测试理由。', text: { key: 'AI 判断：{reason}', params: { reason: '测试理由。' } }, tone: 'neutral' }]
+    localStorage.setItem('cashflow-lab-save-v1', JSON.stringify(game))
+    localStorage.setItem('cashflow-lab-guides', JSON.stringify(['start', 'deal']))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: /继续上次游戏/ }))
+
+    expect(screen.queryByText(/AI 判断：测试理由/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '显示 AI 思路' }))
+    expect(screen.getByText(/AI 判断：测试理由/)).toBeInTheDocument()
+
+    expect(screen.getByText('林晓 转让机会', { exact: false })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '接手 US$4,500' }))
+    const saved = JSON.parse(localStorage.getItem('cashflow-lab-save-v1')!)
+    expect(saved.players[0].cash).toBe(15500)
+    expect(saved.players[0].assets.map((asset: { sourceId: string }) => asset.sourceId)).toEqual(['asset-neighborhood-laundry'])
+  })
+
   it('keeps unlockable professions locked until enough achievements are earned', () => {
     const { unmount } = render(<App />)
     expect(screen.getByRole('option', { name: /程序员 · 需要 3 个成就/ })).toBeDisabled()
