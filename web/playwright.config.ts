@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Windows uses the preinstalled Edge; elsewhere use Playwright's Chromium, or PW_CHROMIUM_PATH if set.
+const browserChannel = process.platform === 'win32'
+  ? { channel: 'msedge' }
+  : process.env.PW_CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } } : {}
+
 export default defineConfig({
   testDir: './e2e',
   outputDir: './test-results',
@@ -15,7 +20,7 @@ export default defineConfig({
     reuseExistingServer: true,
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], channel: 'msedge' } },
-    { name: 'mobile', use: { ...devices['Pixel 7'], channel: 'msedge' } },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], ...browserChannel } },
+    { name: 'mobile', use: { ...devices['Pixel 7'], ...browserChannel } },
   ],
 })
