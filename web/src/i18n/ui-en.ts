@@ -445,6 +445,26 @@ export const UI_EN = {
   证券价格每轮变化: 'Prices move every round',
   '股票和基金按当前行情买入，可以在自己的回合随时按市价卖出。增长周期整体走强，高利率周期整体走弱。': 'Stocks and funds are bought at today’s price and can be sold at market on any of your turns. Growth cycles lift prices; high-interest cycles drag them down.',
   信用卡与行情: 'Credit cards and prices',
+
+  // Post-game report
+  局后报告: 'Game report',
+  '第 {round} 轮出圈': 'Out of the Rat Race in round {round}',
+  '第 {round} 轮': 'Round {round}',
+  出圈: 'Out',
+  每月: 'per month',
+  用左右方向键逐轮查看: 'Use the left and right arrow keys to step through rounds',
+  '你的被动收入与总支出（每月）': 'Your passive income vs. total expenses (per month)',
+  每轮结束时的现金: 'Cash at the end of each round',
+  关键时刻: 'Key moments',
+  查看数据表: 'Show data table',
+  轮次: 'Round',
+  '第 {round} 轮：买下第一项资产“{asset}”，每月 +{amount}。': 'Round {round}: bought your first asset, “{asset}”, for +{amount} a month.',
+  '第 {round} 轮：回报最高的投资“{asset}”，首付 {down}，每月 +{amount}，年回报 {roi}%。': 'Round {round}: your best deal was “{asset}”: {down} down for +{amount} a month, a {roi}% annual return.',
+  '第 {round} 轮：放弃了“{asset}”，它的年回报 {roi}% 比你买下的都高。': 'Round {round}: you passed on “{asset}”. Its {roi}% annual return beat everything you bought.',
+  '第 {round} 轮：卖出“{asset}”，赚了 {amount}。': 'Round {round}: sold “{asset}” for a {amount} profit.',
+  '第 {round} 轮：最大一笔意外支出 {amount}。': 'Round {round}: your biggest surprise bill, {amount}.',
+  '从第 {round} 轮起刷卡 {count} 次，共 {amount}。': 'From round {round}: charged {count} {count|bill|bills} to a credit card, {amount} in total.',
+  '第 {round} 轮：被动收入超过总支出，进入自由快道！': 'Round {round}: passive income beat expenses. Welcome to the Freedom Lane!',
   '额外支出可以刷信用卡，每月多付金额的 5% 直到还清。股票和基金价格每轮随经济周期变化，可随时按市价卖出。': 'Splurges can go on a credit card that costs 5% of the bill every month until paid off. Stock and fund prices move with the economic cycle every round and can be sold at market any time.',
 } as const
 

@@ -1574,7 +1574,10 @@ export const executeCommand = (state: GameState, command: GameCommand): CommandR
   }
 }
 
-export const replayGame = (game: GameState): GameState => {
+export const replayGame = (
+  game: GameState,
+  onStep?: (before: GameState, command: GameCommand, after: GameState) => void,
+): GameState => {
   const setup = game.setup
   let replayed = createGame(
     setup.aiCount as 1 | 2 | 3,
@@ -1594,7 +1597,9 @@ export const replayGame = (game: GameState): GameState => {
   for (const command of game.commandHistory ?? []) {
     const result = executeCommandInternal(replayed, command)
     if (!result.ok) throw new Error(`Replay failed at ${command.type}: ${result.error}`)
-    replayed = { ...result.state, commandHistory: [...replayed.commandHistory, command] }
+    const next = { ...result.state, commandHistory: [...replayed.commandHistory, command] }
+    onStep?.(replayed, command, next)
+    replayed = next
   }
   return replayed
 }

@@ -51,6 +51,7 @@ import './game-details.css'
 import './game-polish.css'
 import { GameAudio } from './game-audio'
 import { useWalkingPieces } from './board-motion'
+import { GameReport } from './GameReport'
 import { sessionStore, storage } from './platform/storage'
 import { breakAdDue, platform, showBreakAd } from './platform'
 import { formatLog, getLanguage, money, setLanguage, t, tn, tx, type Language } from './i18n'
@@ -1143,6 +1144,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
                 ? t('破产会淘汰当前玩家；你的本局操作已经结束。{outcome}', { outcome: winner ? t('{name} 成为最后未破产玩家并获胜。', { name: tn(winner.name) }) : t('其他 AI 将继续对局。') })
                 : t('本局已经产生胜者，所有游戏命令都已停止。')}
             </p>
+            <GameReport game={game} />
             <div className="final-standing">
               {rankedPlayers.map((player, rank) => {
                 const playerIndex = game.players.findIndex((candidate) => candidate.id === player.id)
