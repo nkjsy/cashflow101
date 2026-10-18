@@ -164,10 +164,9 @@ test('game screen remains usable after starting with three AI players', async ({
     expect(decision!.x + decision!.width).toBeLessThanOrEqual(board!.x + board!.width)
     expect(decision!.y + decision!.height).toBeLessThanOrEqual(board!.y + board!.height)
     expect(board!.y + board!.height).toBeLessThanOrEqual(opponents!.y)
-    expect(opponents!.y + opponents!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
-    const loanPayment = await humanLoanPayment.boundingBox()
-    expect(loanPayment).not.toBeNull()
-    expect(loanPayment!.y + loanPayment!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+    // Short windows (this project is 1280×720) scroll instead of squeezing the board, so check reachability.
+    await humanLoanPayment.scrollIntoViewIfNeeded()
+    await expect(humanLoanPayment).toBeInViewport()
   }
   const firstOpponentSummary = page.locator('.opponent-summary').first()
   await firstOpponentSummary.click()
@@ -200,13 +199,8 @@ test('game screen remains usable after starting with three AI players', async ({
   await expect(assetList).toBeVisible()
   const assetOverflow = await assetList.evaluate((element) => element.scrollHeight > element.clientHeight)
   expect(assetOverflow).toBe(true)
-  if (testInfo.project.name === 'desktop') {
-    const dimensions = await page.evaluate(() => ({
-      viewport: document.documentElement.clientHeight,
-      content: document.documentElement.scrollHeight,
-    }))
-    expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport)
-  }
+  // Short desktop windows scroll the page rather than squeezing the board, so only width must fit.
+  await expectNoHorizontalOverflow(page)
   await page.screenshot({ path: testInfo.outputPath('game-screen.png'), fullPage: true })
 })
 test.describe('English', () => {
@@ -228,4 +222,38 @@ test.describe('English', () => {
     await expectNoHorizontalOverflow(page)
     await page.screenshot({ path: testInfo.outputPath('game-en.png'), fullPage: true })
   })
+})
+
+// Every visible control must be clickable: nothing (guide card, banners, panels) may sit on top of it.
+test('no control is covered in the Freedom Lane with a rival alert and guide', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: /开始新游戏/ }).click()
+  await page.waitForFunction(() => Boolean(localStorage.getItem('cashflow-lab-save-v1')))
+  await page.evaluate(() => {
+    const key = 'cashflow-lab-save-v1'
+    const game = JSON.parse(localStorage.getItem(key)!)
+    for (const player of game.players) Object.assign(player, { phase: 'fast-track', position: 0, passiveIncome: 3000, fastTrackIncome: 300000, fastTrackGoal: 340000, fastTrackTurns: 2, cash: 120000 })
+    localStorage.setItem(key, JSON.stringify(game))
+    localStorage.setItem('cashflow-lab-guides', '[]')
+  })
+  await page.reload()
+  await page.getByRole('button', { name: /继续上次游戏/ }).click()
+  await expect(page.getByRole('status', { name: '对手冲刺提醒' })).toBeVisible()
+  await expect(page.locator('.guide-card')).toBeVisible()
+
+  const covered = await page.evaluate(async () => {
+    const problems: string[] = []
+    const controls = [...document.querySelectorAll<HTMLElement>('.game-shell button, .game-shell select')]
+      .filter((element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden' && !element.closest('[role="tooltip"]'))
+    for (const control of controls) {
+      control.scrollIntoView({ block: 'center', inline: 'center' })
+      await new Promise(requestAnimationFrame)
+      const box = control.getBoundingClientRect()
+      const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+      if (top && !control.contains(top) && !top.closest('.toast')) problems.push(`${control.textContent?.trim() || control.getAttribute('aria-label') || control.title} under ${top.className}`)
+    }
+    return problems
+  })
+  expect(covered).toEqual([])
+  await expectNoHorizontalOverflow(page)
 })

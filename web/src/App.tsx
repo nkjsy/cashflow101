@@ -77,6 +77,7 @@ import {
   FAST_TRACK_BOARD,
   FAST_TRACK_BUSINESSES,
   FAST_TRACK_DREAM_BY_POSITION,
+  DREAM_SHORT_NAMES,
   FAST_TRACK_RISKS,
   FAST_TRACK_DREAM_COSTS,
   MARKETS,
@@ -1178,8 +1179,25 @@ type GameProps = {
   onCelebrate: () => void
 }
 
+const WIDE_LAYOUT_QUERY = '(min-width: 1081px)'
+const matchesWideLayout = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(WIDE_LAYOUT_QUERY).matches
+
+// Tracks the CSS breakpoint where the event log gets its own column.
+function useWideLayout() {
+  const [wide, setWide] = useState(matchesWideLayout)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const query = window.matchMedia(WIDE_LAYOUT_QUERY)
+    const update = () => setWide(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  return wide
+}
+
 function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fastAi, spectating, soundEnabled, onMode, onLanguage, onFastAi, onSpectate, onSound, onMenu, onCommand, onDismissFastTrackCelebration, onReset, onRequestReset, onCelebrate }: GameProps) {
   const [showHelp, setShowHelp] = useState(false)
+  const wideLayout = useWideLayout()
   // Keyboard shortcuts: R rolls, E ends the turn, ? toggles the rules. Ignored while typing or in a dialog.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1249,6 +1267,9 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
     return game.players.indexOf(left) - game.players.indexOf(right)
   })
 
+  // Wide screens dock the guide in the event log column; narrower ones show it in flow above the board,
+  // where a floating card used to cover buttons.
+  const guideCard = guide && <section className="guide-card" aria-live="polite"><CircleHelp /><div><strong>{t(guide.title)}</strong><p>{t(guide.text, guide.params)}</p></div><button onClick={() => setSeenGuides((seen) => { const next = [...seen, guide.id]; storage.set('cashflow-lab-guides', JSON.stringify(next)); return next })}>{t('知道了')}</button></section>
   return (
     <main className="game-shell">
       <section className={`progress-band ${human.phase === 'fast-track' ? 'fast-track-phase' : ''}`}>
@@ -1269,12 +1290,13 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
       </section>
       {winner && <section className="winner-banner"><Sparkles /><div><strong>{winner.isHuman ? t('你赢得了游戏！') : t('{name} 赢得了游戏', { name: tn(winner.name) })}</strong><span>{winner.isHuman ? t('你已经实现财务目标。') : t('查看事件记录了解最后一步。')}</span></div></section>}
       {!winner && <RivalAlert game={game} />}
+      {!wideLayout && guideCard}
       <div className="game-grid">
         <Finance game={game} mode={mode} onCommand={onCommand} />
         <section className="play-area">
           <Board game={game} mode={mode} viewedPhase={viewedPhase} fastAi={fastAi} onCommand={onCommand} />
         </section>
-        <Activity game={game} guide={guide && <section className="guide-card" aria-live="polite"><CircleHelp /><div><strong>{t(guide.title)}</strong><p>{t(guide.text, guide.params)}</p></div><button onClick={() => setSeenGuides((seen) => { const next = [...seen, guide.id]; storage.set('cashflow-lab-guides', JSON.stringify(next)); return next })}>{t('知道了')}</button></section>} />
+        <Activity game={game} guide={wideLayout && guideCard} />
         <OpponentDashboard game={game} />
       </div>
       {showHelp && <div className="help-backdrop" role="presentation" onMouseDown={() => setShowHelp(false)}><section className="rules-panel" role="dialog" aria-modal="true" aria-labelledby="rules-title" onMouseDown={(event) => event.stopPropagation()}><header><div><small>{t('随时查阅')}</small><h2 id="rules-title">{t('游戏规则')}</h2></div><button className="icon-button" title={t('关闭规则')} onClick={() => setShowHelp(false)}>×</button></header><div className="rules-grid"><article><strong>{t('打工圈')}</strong><p>{t('经过发薪日结算月现金流。购买正现金流资产；被动收入严格超过总支出时进入自由快道。')}</p></article><article><strong>{t('贷款与破产')}</strong><p>{t('贷款以 $1,000 为单位，每月支付余额的 10%。现金为负时必须借款、清算或宣布破产。')}</p></article><article><strong>{t('市场与慈善')}</strong><p>{t('市场按座位顺序由符合条件的玩家响应。慈善换取未来三个有效回合的双骰选择。')}</p></article>{livingEconomy(game) && <article><strong>{t('信用卡与行情')}</strong><p>{t('额外支出可以刷信用卡，每月多付金额的 5% 直到还清。股票和基金价格每轮随经济周期变化，可随时按市价卖出。')}</p></article>}<article><strong>{t('自由快道')}</strong><p>{t('经营企业提高收入，出售企业筹集梦想资金。收入增加 {gain}，或买下自己的梦想即可获胜。', { gain: `$${fastTrackGoalGainFor(game.setup).toLocaleString('en-US')}` })}</p></article></div><p className="shortcut-hint">{t('快捷键：R 掷骰子 · E 结束回合 · ? 打开或关闭规则')}</p><button className="primary wide" onClick={() => setShowHelp(false)}>{t('继续游戏')}</button></section></div>}
@@ -1681,7 +1703,9 @@ function TrackBoard({ game, phase, decision, guided, fastAi }: { game: GameState
               tabIndex={guided ? 0 : undefined}
               aria-describedby={guided ? `space-guide-${phase}-${index}` : undefined}
             >
-              <span>{label}</span>
+              {isFastTrack && space === 'dream'
+                ? <span><span className="label-full">{label}</span><span className="label-short" aria-hidden="true">{tn(DREAM_SHORT_NAMES[FAST_TRACK_DREAM_BY_POSITION[index]])}</span></span>
+                : <span>{label}</span>}
               <SpaceIcon className="space-icon" aria-hidden="true" />
               <div className="pieces">
                 {game.players
