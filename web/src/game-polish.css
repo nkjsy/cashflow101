@@ -1697,3 +1697,222 @@ body {
     justify-content: flex-start;
   }
 }
+
+/* Layout fixes: nothing clipped or covered at any screen size. */
+
+/* Tile labels wrap to two lines instead of cutting dream names short. */
+.board-space > span:first-child {
+  display: -webkit-box;
+  padding-right: 2px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
+  white-space: normal;
+  hyphens: auto;
+}
+
+/* Narrow screens: the guide sits in flow above the board instead of floating over buttons. */
+.game-shell > .guide-card {
+  position: static;
+  width: auto;
+  margin: 0;
+  transform: none;
+  grid-template-columns: auto 1fr auto;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 600px) {
+  .game-shell > .guide-card {
+    padding: 10px 16px;
+    grid-template-columns: auto 1fr;
+  }
+
+  .game-shell > .guide-card > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* Desktop: the shell is one screen tall, so the grid takes what the banners leave
+   and each side column scrolls instead of cutting its content off. */
+@media (min-width: 1081px) {
+  .game-shell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .game-shell > .progress-band,
+  .game-shell > .winner-banner,
+  .game-shell > .rival-alert {
+    flex: none;
+  }
+
+  body .game-shell > .game-grid {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+
+  .game-grid > .finance-panel,
+  .game-grid > .activity-panel {
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .activity-panel .activity-list {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Opponent status lines wrap rather than clip (e.g. charity dice with turns left). */
+.opponent-metrics strong {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* The strategy hint opens above the heading, so it never covers the buttons below it. */
+.strategy-heading-tooltip {
+  top: auto;
+  bottom: calc(100% + 7px);
+}
+
+/* Tablets and phones: stack the ready card like on desktop so the roll button keeps its width. */
+@media (max-width: 780px) {
+  .board-center .decision.ready {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .board-center .decision.ready .turn-actions {
+    width: 100%;
+    flex-direction: column-reverse;
+  }
+
+  .board-center .decision.ready .strategy-actions {
+    justify-content: center;
+  }
+
+  .board-center .decision.ready .roll {
+    justify-content: center;
+  }
+}
+
+/* Small tablets have no room for the brand beside the toggle and actions. */
+@media (min-width: 481px) and (max-width: 780px) {
+  .progress-band .top-brand {
+    display: none !important;
+  }
+}
+
+/* Dream tiles: full name on roomy boards, a short name on phone-sized tiles. */
+.board-space .label-short {
+  display: none;
+}
+
+@media (min-width: 781px) {
+  .fast-track-board .board-space > span:first-child {
+    -webkit-line-clamp: 3;
+  }
+}
+
+@media (max-width: 780px) {
+  .board-space .label-full {
+    display: none;
+  }
+
+  .board-space .label-short {
+    display: inline;
+  }
+}
+
+/* Desktop: a short window gets a scrollable play area rather than a board cut off at the bottom. */
+@media (min-width: 1081px) {
+  .game-grid > .play-area {
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+
+/* Phones: each strategy group takes a full row, so the select and its buttons stay inside the card. */
+@media (max-width: 600px) {
+  .board-center .strategy-actions > .strategy-control {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .board-center .strategy-actions > .strategy-control > select {
+    flex: 1 1 100%;
+    max-width: none;
+    border-radius: 999px;
+  }
+
+  .board-center .strategy-actions > .strategy-control > button {
+    flex: 1 1 0;
+    justify-content: center;
+    border-left: 1px solid #cfe0d6;
+    border-radius: 999px;
+  }
+}
+
+/* Short desktop windows (e.g. 1280×720): the one-screen layout would squeeze the board under the
+   opponent panel, so the page scrolls normally and the board keeps its natural size. */
+@media (min-width: 1081px) and (max-height: 820px) {
+  .game-shell {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  body .game-shell > .game-grid {
+    height: auto;
+    overflow: visible;
+  }
+
+  .game-grid > .play-area {
+    overflow: visible;
+  }
+
+  /* Side columns follow the board's height (height 0 keeps them out of row sizing) and scroll. */
+  .game-grid > .finance-panel,
+  .game-grid > .activity-panel {
+    height: 0;
+    min-height: 100%;
+    overflow-y: auto;
+  }
+
+  .play-area .board-workspace,
+  .play-area .track-panel {
+    height: auto;
+  }
+
+  .play-area .track-panel .board-grid {
+    flex: none;
+    max-height: none;
+    aspect-ratio: 1.45;
+  }
+
+}
+
+/* English dream names are long; narrow tiles switch to the short name. */
+.fast-track-board .board-space.dream {
+  container-type: inline-size;
+}
+
+@container (max-width: 100px) {
+  html:lang(en) .board-space .label-full {
+    display: none;
+  }
+
+  html:lang(en) .board-space .label-short {
+    display: inline;
+  }
+}

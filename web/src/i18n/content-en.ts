@@ -38,6 +38,14 @@ export const CONTENT_EN: Readonly<Record<string, string>> = {
   制作一部独立电影: 'Make an indie film',
   建立社区健康中心: 'Build a community health center',
   创办一座公益艺术馆: 'Found a public art museum',
+  图书馆: 'Library',
+  环游世界: 'World trip',
+  创业基金: 'Founders fund',
+  山中小屋: 'Cabin',
+  乡村学校: 'Rural school',
+  独立电影: 'Indie film',
+  健康中心: 'Health center',
+  艺术馆: 'Art museum',
 
   // Small deals
   社区洗衣店: 'Neighborhood Laundromat',

@@ -431,6 +431,18 @@ export const DREAMS = [
   '创办一座公益艺术馆',
 ]
 
+// Fits a dream on a phone-sized board tile.
+export const DREAM_SHORT_NAMES: Record<string, string> = {
+  开一家社区图书馆: '图书馆',
+  环游世界一年: '环游世界',
+  建立青年创业基金: '创业基金',
+  拥有一间山中小屋: '山中小屋',
+  资助一所乡村学校: '乡村学校',
+  制作一部独立电影: '独立电影',
+  建立社区健康中心: '健康中心',
+  创办一座公益艺术馆: '艺术馆',
+}
+
 export const FAST_TRACK_DREAM_COSTS = Object.fromEntries(
   DREAMS.map((dream, index) => [dream, [200000, 300000, 250000, 450000, 350000, 500000, 275000, 400000][index]]),
 ) as Record<string, number>
