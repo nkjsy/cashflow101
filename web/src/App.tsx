@@ -1,19 +1,29 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
+  Baby,
   BanknoteArrowDown,
   Bot,
   BriefcaseBusiness,
+  Building2,
   Calculator,
+  ChartCandlestick,
   Check,
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
   CircleHelp,
   Cog,
+  Coins,
+  Dice1,
+  Dice2,
+  Dice3,
+  Dice4,
   Dice5,
+  Dice6,
   Flag,
   GraduationCap,
   HandCoins,
+  HandHeart,
   HeartPulse,
   House,
   Landmark,
@@ -23,17 +33,24 @@ import {
   RotateCcw,
   Scale,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
+  Star,
   Stethoscope,
   TrendingUp,
+  TriangleAlert,
+  UserX,
   Volume2,
   VolumeX,
+  Wallet,
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
 import './App.css'
 import './game-details.css'
+import './game-polish.css'
 import { GameAudio } from './game-audio'
+import { useWalkingPieces } from './board-motion'
 import { sessionStore, storage } from './platform/storage'
 import { breakAdDue, platform, showBreakAd } from './platform'
 import { formatLog, getLanguage, money, setLanguage, t, tn, tx, type Language } from './i18n'
@@ -95,6 +112,7 @@ import type {
   FastTrackBusiness,
   FastTrackSector,
   GamePace,
+  FastTrackSpaceType,
   SpaceType,
 } from './game-core/types'
 
@@ -183,6 +201,22 @@ const fastTrackSpaceLabels: Record<'cashflow-day' | 'business' | 'dream' | 'risk
   dream: '梦想',
   risk: '风险',
 } as const
+
+const spaceIcons: Record<SpaceType | FastTrackSpaceType, LucideIcon> = {
+  opportunity: BriefcaseBusiness,
+  payday: Wallet,
+  market: ChartCandlestick,
+  doodad: ShoppingBag,
+  charity: HandHeart,
+  baby: Baby,
+  downsized: UserX,
+  'cashflow-day': Coins,
+  business: Building2,
+  dream: Star,
+  risk: TriangleAlert,
+}
+
+const diceFaces = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6]
 
 const spaceDescriptions: Record<SpaceType, UiKey> = {
   opportunity: '抽取小买卖或大买卖，在查看首付、负债和现金流后决定是否投资。',
@@ -316,6 +350,24 @@ function PlayerAvatar({
           <small>{t(professionPassives[profile.title])}</small>
         </span>
       )}
+    </span>
+  )
+}
+
+// Re-keys on every change so the flash and the floating delta replay; the value itself renders immediately.
+function FlashValue({ value, children, className = '' }: { value: number; children: ReactNode; className?: string }) {
+  const previous = useRef(value)
+  const [change, setChange] = useState<{ delta: number; key: number } | null>(null)
+  useEffect(() => {
+    const delta = value - previous.current
+    previous.current = value
+    if (delta !== 0) setChange((current) => ({ delta, key: (current?.key ?? 0) + 1 }))
+  }, [value])
+  const direction = change ? change.delta > 0 ? 'up' : 'down' : ''
+  return (
+    <span className={`flash-value ${direction} ${className}`} key={change?.key ?? 0}>
+      {children}
+      {change && <i className="value-delta" aria-hidden="true">{change.delta > 0 ? '+' : '-'}{money(Math.abs(change.delta))}</i>}
     </span>
   )
 }
@@ -1026,13 +1078,12 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
         <div className="header-actions"><LanguageToggle language={language} onLanguage={onLanguage} /><button className="text-control" title={t('切换游戏提示密度')} onClick={() => onMode(mode === 'guided' ? 'standard' : 'guided')}>{mode === 'guided' ? t('引导') : t('标准')}</button><button className={`icon-button ${fastAi ? 'active' : ''}`} title={fastAi ? t('恢复 AI 动画') : t('快进 AI 动画')} onClick={onFastAi}><Bot /></button><button className={`icon-button ${soundEnabled ? 'active' : ''}`} title={soundEnabled ? t('关闭游戏音效') : t('开启游戏音效')} aria-pressed={soundEnabled} onClick={onSound}>{soundEnabled ? <Volume2 /> : <VolumeX />}</button><button className="icon-button" title={t('规则帮助')} onClick={() => setShowHelp(true)}><CircleHelp /></button><button className="icon-button" title={t('返回主菜单并保留存档')} onClick={onMenu}><House /></button><button className="icon-button" title={t('删除存档并重新开始')} onClick={onRequestReset}><RotateCcw /></button></div>
       </section>
       {winner && <section className="winner-banner"><Sparkles /><div><strong>{winner.isHuman ? t('你赢得了游戏！') : t('{name} 赢得了游戏', { name: tn(winner.name) })}</strong><span>{winner.isHuman ? t('你已经实现财务目标。') : t('查看事件记录了解最后一步。')}</span></div></section>}
-      {guide && <section className="guide-card" aria-live="polite"><CircleHelp /><div><strong>{t(guide.title)}</strong><p>{t(guide.text, guide.params)}</p></div><button onClick={() => setSeenGuides((seen) => { const next = [...seen, guide.id]; storage.set('cashflow-lab-guides', JSON.stringify(next)); return next })}>{t('知道了')}</button></section>}
       <div className="game-grid">
         <Finance game={game} mode={mode} />
         <section className="play-area">
-          <Board game={game} mode={mode} viewedPhase={viewedPhase} onCommand={onCommand} />
+          <Board game={game} mode={mode} viewedPhase={viewedPhase} fastAi={fastAi} onCommand={onCommand} />
         </section>
-        <Activity game={game} />
+        <Activity game={game} guide={guide && <section className="guide-card" aria-live="polite"><CircleHelp /><div><strong>{t(guide.title)}</strong><p>{t(guide.text, guide.params)}</p></div><button onClick={() => setSeenGuides((seen) => { const next = [...seen, guide.id]; storage.set('cashflow-lab-guides', JSON.stringify(next)); return next })}>{t('知道了')}</button></section>} />
         <OpponentDashboard game={game} />
       </div>
       {showHelp && <div className="help-backdrop" role="presentation" onMouseDown={() => setShowHelp(false)}><section className="rules-panel" role="dialog" aria-modal="true" aria-labelledby="rules-title" onMouseDown={(event) => event.stopPropagation()}><header><div><small>{t('随时查阅')}</small><h2 id="rules-title">{t('游戏规则')}</h2></div><button className="icon-button" title={t('关闭规则')} onClick={() => setShowHelp(false)}>×</button></header><div className="rules-grid"><article><strong>{t('打工圈')}</strong><p>{t('经过发薪日结算月现金流。购买正现金流资产；被动收入严格超过总支出时进入自由快道。')}</p></article><article><strong>{t('贷款与破产')}</strong><p>{t('贷款以 $1,000 为单位，每月支付余额的 10%。现金为负时必须借款、清算或宣布破产。')}</p></article><article><strong>{t('市场与慈善')}</strong><p>{t('市场按座位顺序由符合条件的玩家响应。慈善换取未来三个有效回合的双骰选择。')}</p></article><article><strong>{t('自由快道')}</strong><p>{t('经营企业提高收入，出售企业筹集梦想资金。收入增加 {gain}，或买下自己的梦想即可获胜。', { gain: `$${(game.setup.pace === 'quick' ? QUICK_PACE.fastTrackGoalGain : STANDARD_FAST_TRACK_GOAL_GAIN).toLocaleString('en-US')}` })}</p></article></div><button className="primary wide" onClick={() => setShowHelp(false)}>{t('继续游戏')}</button></section></div>}
@@ -1159,13 +1210,13 @@ function Finance({ game, mode }: { game: GameState; mode: DisplayMode }) {
           <span className="summary-help" tabIndex={0}>{human.longTermGoalCompleted ? t('目标完成') : human.longTermGoal === 'master-asset' ? t('目标：三级资产') : human.longTermGoal === 'debt-free' ? t('目标：无贷经营') : t('目标：三类配置')}<span className="summary-tooltip" role="tooltip">{human.longTermGoal === 'master-asset' ? t('将任意一项非证券资产升级到 3 级。') : human.longTermGoal === 'debt-free' ? t('持有至少两项资产，并把银行贷款清偿为零。') : t('持有房地产、企业、股票、基金、存单中的任意三种资产类型。')}{t(' 完成后获得 {reward}。', { reward: longTermGoalReward })}</span></span>
           {human.insurance && <span>{human.insurance === 'job-loss' ? t('失业保险') : human.insurance === 'maintenance' ? t('维护保险') : t('诉讼保险')}</span>}
         </div>}
-        <span className="cash">{t('现金 {amount}', { amount: money(human.cash) })}</span>
+        <FlashValue value={human.cash} className="cash">{t('现金 {amount}', { amount: money(human.cash) })}</FlashValue>
       </section>
       <section className="panel statement">
-        <div className="section-title"><span>{t('每月现金流')}</span><strong>{money(monthlyCashFlow(human))}</strong></div>
+        <div className="section-title"><span>{t('每月现金流')}</span><strong><FlashValue value={monthlyCashFlow(human)}>{money(monthlyCashFlow(human))}</FlashValue></strong></div>
         <dl>
           <div><dt>{t('工资收入')}</dt><dd>{money(human.salary)}</dd></div>
-          <div><dt>{t('被动收入')}</dt><dd className="positive-text">{money(human.passiveIncome)}</dd></div>
+          <div><dt>{t('被动收入')}</dt><dd className="positive-text"><FlashValue value={human.passiveIncome}>{money(human.passiveIncome)}</FlashValue></dd></div>
           <div className="expense-total-row">
             <button type="button" aria-expanded={expensesExpanded} onClick={() => setExpensesExpanded((expanded) => !expanded)}>
               <span><ChevronRight className={expensesExpanded ? 'expanded' : ''} />{t('总支出')}</span>
@@ -1225,7 +1276,7 @@ function OpponentDashboard({ game }: { game: GameState }) {
                 <ChevronDown className={expanded ? 'expanded' : ''} />
               </button>
               <div className="opponent-metrics">
-                <span><small>{t('现金')}</small><strong>{money(player.cash)}</strong></span>
+                <span><small>{t('现金')}</small><strong><FlashValue value={player.cash}>{money(player.cash)}</FlashValue></strong></span>
                 <span><small>{t('被动 / 支出')}</small><strong>{money(player.passiveIncome)} / {money(totalExpenses(player))}</strong></span>
                 <span><small>{player.phase === 'rat-race' ? t('出圈进度') : t('收入目标进度')}</small><strong>{progress}%</strong></span>
                 <span><small>{t('状态')}</small><strong>{tx(playerStatusText(player))}</strong></span>
@@ -1261,25 +1312,40 @@ function OpponentDashboard({ game }: { game: GameState }) {
   )
 }
 
-function Board({ game, mode, viewedPhase, onCommand }: { game: GameState; mode: DisplayMode; viewedPhase: 'rat-race' | 'fast-track'; onCommand: (command: GameCommand) => void }) {
+function Board({ game, mode, viewedPhase, fastAi, onCommand }: { game: GameState; mode: DisplayMode; viewedPhase: 'rat-race' | 'fast-track'; fastAi: boolean; onCommand: (command: GameCommand) => void }) {
   return (
     <div className="board-workspace">
       <TrackBoard
         game={game}
         phase={viewedPhase}
         guided={mode === 'guided'}
+        fastAi={fastAi}
         decision={<Decision game={game} mode={mode} onCommand={onCommand} />}
       />
     </div>
   )
 }
 
-function TrackBoard({ game, phase, decision, guided }: { game: GameState; phase: 'rat-race' | 'fast-track'; decision: ReactNode; guided: boolean }) {
+function TrackBoard({ game, phase, decision, guided, fastAi }: { game: GameState; phase: 'rat-race' | 'fast-track'; decision: ReactNode; guided: boolean; fastAi: boolean }) {
   const isFastTrack = phase === 'fast-track'
   const track = isFastTrack ? FAST_TRACK_BOARD : BOARD
+  const { spots, walking, roll } = useWalkingPieces(game.players, fastAi ? 30 : 110)
+  const human = game.players[0]
+  const currentSpot = spots[game.currentPlayerIndex]
+  const rollPlayer = roll ? game.players[roll.playerIndex] : undefined
+  const RollFace = roll && roll.steps <= 6 ? diceFaces[roll.steps - 1] : Dice5
   return (
     <section className={`track-panel ${isFastTrack ? 'fast-panel' : 'rat-panel'}`}>
-      <header><strong>{isFastTrack ? t('自由快道') : t('打工圈')}</strong><span>{t('{count} 名玩家', { count: game.players.filter((player) => player.phase === phase).length })}</span></header>
+      <header>
+        <strong>{isFastTrack ? t('自由快道') : t('打工圈')}</strong>
+        {roll && rollPlayer && rollPlayer.phase === phase && (
+          <span className={`dice-pop player-${roll.playerIndex}`} key={roll.key} aria-hidden="true">
+            <RollFace />
+            <b>{roll.steps}</b>
+          </span>
+        )}
+        <span>{t('{count} 名玩家', { count: game.players.filter((player) => player.phase === phase).length })}</span>
+      </header>
       <div className={`board-grid ${isFastTrack ? 'fast-track-board' : ''}`} aria-label={isFastTrack ? t('自由快道') : t('打工圈')}>
         {track.map((space, index) => {
           const label = isFastTrack
@@ -1290,20 +1356,28 @@ function TrackBoard({ game, phase, decision, guided }: { game: GameState; phase:
           const description = isFastTrack
             ? t(fastTrackSpaceDescriptions[space as keyof typeof fastTrackSpaceDescriptions])
             : t(spaceDescriptions[space as SpaceType])
+          const SpaceIcon = spaceIcons[space]
+          const isMyDream = isFastTrack && space === 'dream' && FAST_TRACK_DREAM_BY_POSITION[index] === human.dream
+          const isCurrent = currentSpot?.phase === phase && currentSpot.position === index && !walking[game.currentPlayerIndex]
           return (
             <div
-              className={`board-space ${space} ${guided ? 'has-guide' : ''}`}
+              className={`board-space ${space} ${guided ? 'has-guide' : ''} ${isMyDream ? 'my-dream' : ''} ${isCurrent ? 'current-space' : ''}`}
               key={`${space}-${index}`}
               title={guided ? undefined : label}
               tabIndex={guided ? 0 : undefined}
               aria-describedby={guided ? `space-guide-${phase}-${index}` : undefined}
             >
               <span>{label}</span>
+              <SpaceIcon className="space-icon" aria-hidden="true" />
               <div className="pieces">
                 {game.players
                   .map((player, playerIndex) => ({ player, playerIndex }))
-                  .filter(({ player }) => player.position === index && player.phase === phase)
-                  .map(({ player, playerIndex }) => <PlayerAvatar player={player} index={playerIndex} size="tiny" key={player.id} />)}
+                  .filter(({ playerIndex }) => spots[playerIndex]?.position === index && spots[playerIndex]?.phase === phase)
+                  .map(({ player, playerIndex }) => (
+                    <span className={walking[playerIndex] ? 'piece walking' : 'piece'} key={`${player.id}-${walking[playerIndex] ? index : 'rest'}`}>
+                      <PlayerAvatar player={player} index={playerIndex} size="tiny" />
+                    </span>
+                  ))}
               </div>
               {guided && (
                 <span className="space-guide" id={`space-guide-${phase}-${index}`} role="tooltip">
@@ -1319,9 +1393,10 @@ function TrackBoard({ game, phase, decision, guided }: { game: GameState; phase:
   )
 }
 
-function Activity({ game }: { game: GameState }) {
+function Activity({ game, guide }: { game: GameState; guide: ReactNode }) {
   return (
     <aside className="activity-panel">
+      {guide}
       <Title title={t('事件记录')} note={t('最新在前')} />
       <div className="activity-list">
         {[...game.logs].reverse().map((entry) => {

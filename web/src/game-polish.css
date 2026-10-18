@@ -1,0 +1,429 @@
+/* Visual polish layer: typed board spaces, piece motion, value feedback and layout fixes. */
+:root {
+  --gold: #c9971f;
+  --gold-deep: #9a6c13;
+  --gold-soft: #fff3d6;
+  --space-accent: #9aa59f;
+  --space-tint: var(--paper);
+}
+
+/* Board spaces: each type gets its own accent, tint and icon. */
+.board-space {
+  position: relative;
+  overflow: visible;
+  color: var(--space-accent);
+  background: var(--space-tint);
+  border-color: color-mix(in srgb, var(--space-accent) 28%, var(--line));
+  border-top: 3px solid var(--space-accent);
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+
+.board-space > span:first-child {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-space .space-icon {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  width: clamp(14px, 32%, 30px);
+  height: auto;
+  aspect-ratio: 1;
+  opacity: .78;
+  stroke-width: 1.75;
+  pointer-events: none;
+}
+
+.board-space .pieces {
+  position: relative;
+  z-index: 2;
+}
+
+.board-space.opportunity { --space-accent: #1d8060; --space-tint: #f3f9f5; }
+.board-space.payday { --space-accent: var(--gold-deep); --space-tint: var(--gold-soft); }
+.board-space.market { --space-accent: #2f6f8a; --space-tint: #e8f1f5; }
+.board-space.doodad { --space-accent: #b74d3d; --space-tint: #fbefec; }
+.board-space.downsized { --space-accent: #8f3426; --space-tint: #f5dcd6; }
+.board-space.charity { --space-accent: #a34b7c; --space-tint: #f8ebf3; }
+.board-space.baby { --space-accent: #c06a1f; --space-tint: #fdf0e3; }
+
+.board-space.payday,
+.board-space.downsized,
+.board-space.doodad,
+.board-space.charity {
+  color: var(--space-accent);
+  background: var(--space-tint);
+}
+
+/* The Freedom Lane is a night-time board with gold accents. */
+.track-panel.fast-panel {
+  background: linear-gradient(160deg, #143a2f, #0f2b23);
+  border-color: #2f6b55;
+}
+
+.track-panel.fast-panel > header strong {
+  color: #f5cf73;
+}
+
+.track-panel.fast-panel > header span {
+  color: #b9cfc5;
+}
+
+.fast-track-board .board-space {
+  border-color: rgb(255 255 255 / 10%);
+}
+
+.fast-track-board .board-space.cashflow-day { --space-accent: #f5cf73; --space-tint: #1f4a3c; color: #f5cf73; background: var(--space-tint); border-top-color: var(--space-accent); }
+.fast-track-board .board-space.business { --space-accent: #7fc4e0; --space-tint: #1b4250; color: #a9d9ec; background: var(--space-tint); border-top-color: var(--space-accent); }
+.fast-track-board .board-space.dream { --space-accent: #d9b3f0; --space-tint: #2e2f4d; color: #e4ccf5; background: var(--space-tint); border-top-color: var(--space-accent); }
+.fast-track-board .board-space.risk { --space-accent: #f08f7c; --space-tint: #4a2a28; color: #f6b2a5; background: var(--space-tint); border-top-color: var(--space-accent); }
+
+.fast-track-board .board-space.my-dream {
+  --space-accent: #f5cf73;
+  color: #fff3d6;
+  background: linear-gradient(150deg, #6b4c12, #3a2c10);
+  box-shadow: 0 0 0 2px rgb(245 207 115 / 55%), 0 0 18px rgb(245 207 115 / 30%);
+}
+
+.fast-panel .board-center .decision {
+  color: var(--ink);
+  background: var(--paper);
+  border-radius: 8px;
+}
+
+/* Where the active player stands. */
+.board-space.current-space {
+  z-index: 3;
+  box-shadow: 0 0 0 2px var(--space-accent), 0 6px 16px rgb(23 32 29 / 18%);
+  animation: space-land .45s ease-out;
+}
+
+@keyframes space-land {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+
+/* Pieces hop from space to space while walking. */
+.piece {
+  display: inline-flex;
+}
+
+.piece.walking {
+  animation: piece-hop .16s ease-out;
+}
+
+@keyframes piece-hop {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-7px) scale(1.12); }
+  100% { transform: translateY(0); }
+}
+
+/* Dice result chip in the board header. */
+.track-panel > header {
+  gap: 8px;
+}
+
+.track-panel > header > span:last-child {
+  margin-left: auto;
+}
+
+.track-panel > header .dice-pop {
+  --player-color: #16664d;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px 2px 5px;
+  color: white;
+  background: var(--player-color);
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgb(23 32 29 / 22%);
+  font: 700 13px 'DM Mono', monospace;
+  opacity: 1;
+  animation: dice-pop .55s cubic-bezier(.2, 1.4, .4, 1);
+}
+
+.dice-pop svg {
+  width: 18px;
+  height: 18px;
+  animation: dice-tumble .55s ease-out;
+}
+
+.track-panel > header .dice-pop.player-1 { --player-color: #39758d; }
+.track-panel > header .dice-pop.player-2 { --player-color: #b75a47; }
+.track-panel > header .dice-pop.player-3 { --player-color: #9a6c13; }
+
+@keyframes dice-pop {
+  0% { opacity: 0; transform: translateY(-6px) scale(.6); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes dice-tumble {
+  0% { transform: rotate(-200deg); }
+  100% { transform: rotate(0); }
+}
+
+/* Roll button: the main action in the centre of the board. */
+.board-center .roll:not(.secondary) {
+  color: #2b1f00;
+  background: linear-gradient(180deg, #f8d77f, var(--gold));
+  box-shadow: 0 4px 0 #a37a14, 0 10px 22px rgb(201 151 31 / 30%);
+  transition: transform .1s ease, box-shadow .1s ease;
+}
+
+.board-center .roll:not(.secondary):hover {
+  background: linear-gradient(180deg, #fbe09a, #d6a52b);
+}
+
+.board-center .roll:not(.secondary):active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #a37a14, 0 4px 10px rgb(201 151 31 / 25%);
+}
+
+.board-center .roll svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (min-width: 781px) {
+  .board-center .decision.ready {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .board-center .decision.ready .turn-actions {
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .board-center .decision.ready .strategy-actions {
+    justify-content: center;
+  }
+
+  .board-center .roll {
+    min-height: 50px;
+    padding: 0 30px;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+
+  .board-center .dice-options .roll {
+    min-width: 110px;
+  }
+
+  .board-center .decision.ready .ready-heading h2 {
+    font-size: 17px;
+  }
+}
+
+/* Value feedback: flash on change and float the delta. */
+.flash-value {
+  position: relative;
+  display: inline-block;
+  border-radius: 3px;
+}
+
+.flash-value.cash {
+  display: block;
+}
+
+.flash-value.up {
+  animation: value-up 1s ease-out;
+}
+
+.flash-value.down {
+  animation: value-down 1s ease-out;
+}
+
+.value-delta {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  padding: 1px 6px;
+  color: white;
+  border-radius: 999px;
+  font: 700 11px 'DM Mono', monospace;
+  font-style: normal;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: delta-float 1.6s ease-out forwards;
+}
+
+.flash-value.up .value-delta {
+  background: var(--green2);
+}
+
+.flash-value.down .value-delta {
+  background: var(--red);
+}
+
+@keyframes value-up {
+  0% { background-color: rgb(29 128 96 / 35%); }
+  100% { background-color: transparent; }
+}
+
+@keyframes value-down {
+  0% { background-color: rgb(183 77 61 / 30%); }
+  100% { background-color: transparent; }
+}
+
+@keyframes delta-float {
+  0% { opacity: 0; transform: translateY(6px); }
+  15% { opacity: 1; transform: translateY(0); }
+  75% { opacity: 1; transform: translateY(-6px); }
+  100% { opacity: 0; transform: translateY(-12px); }
+}
+
+/* Cash is the first number players check, so it gets more weight. */
+.finance-panel .cash {
+  padding: 11px 13px;
+  font-size: 17px;
+  font-weight: 600;
+  border-left: 4px solid var(--gold);
+}
+
+/* Guide card: keep it off the board. Desktop docks it over the event log column. */
+.guide-card {
+  animation: guide-in .3s ease-out;
+}
+
+@keyframes guide-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; }
+}
+
+@media (min-width: 1081px) {
+  /* Sits in flow at the top of the event log column. */
+  .activity-panel > .guide-card {
+    position: static;
+    width: auto;
+    margin-bottom: 14px;
+    transform: none;
+    grid-template-columns: auto 1fr;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgb(27 48 39 / 10%);
+  }
+
+  .guide-card > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .board-space {
+    font-size: 11px;
+  }
+
+  /* Let the board use the full height of the play area. */
+  .play-area .board-workspace,
+  .play-area .track-panel {
+    height: 100%;
+  }
+
+  .play-area .track-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .play-area .track-panel .board-grid {
+    flex: 1;
+    width: 100%;
+    height: auto;
+    max-width: 920px;
+    max-height: 640px;
+    aspect-ratio: auto;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 1080px) {
+  .guide-card {
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    left: auto;
+    width: min(360px, calc(100% - 32px));
+    transform: none;
+    border-radius: 8px;
+  }
+}
+
+/* Phones: a dismissible sheet at the bottom instead of pushing the board down. */
+@media (max-width: 600px) {
+  .guide-card {
+    position: fixed;
+    z-index: 60;
+    top: auto;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    left: 8px;
+    border: 1px solid #dfc56f;
+    border-radius: 10px;
+    box-shadow: 0 -6px 28px rgb(23 32 29 / 22%);
+  }
+}
+
+@media (max-width: 780px) {
+  /* Your own finances come before the opponents'. */
+  .finance-panel { order: 2; }
+  .opponent-dashboard { order: 3; }
+
+  .board-space .space-icon {
+    right: 3px;
+    bottom: 3px;
+    width: clamp(11px, 38%, 18px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-space.current-space,
+  .piece.walking,
+  .dice-pop,
+  .dice-pop svg,
+  .flash-value.up,
+  .flash-value.down,
+  .value-delta,
+  .guide-card {
+    animation: none;
+  }
+
+  .value-delta {
+    display: none;
+  }
+}
+
+/* Tablet: the header actions used to spill out of the fixed-height top bar. */
+@media (min-width: 781px) and (max-width: 1080px) {
+  .progress-band {
+    height: auto;
+    min-height: 68px;
+    row-gap: 6px;
+  }
+
+  .progress-band .header-actions {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+/* Phones: grow the board to fit the centre controls instead of letting them spill out. */
+@media (max-width: 780px) {
+  .track-panel .board-grid,
+  .fast-panel .board-grid {
+    height: auto;
+    aspect-ratio: auto;
+    grid-template-rows: repeat(6, minmax(48px, auto));
+  }
+
+  .board-center .decision {
+    max-height: none;
+    overflow: visible;
+  }
+}
