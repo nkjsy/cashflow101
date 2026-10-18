@@ -24,6 +24,7 @@ import {
   Dice4,
   Dice5,
   Dice6,
+  Forward,
   Flag,
   GraduationCap,
   HandCoins,
@@ -97,8 +98,10 @@ import {
   STANDARD_FAST_TRACK_GOAL_GAIN,
   canChargeCreditCard,
   canTakeLoan,
+  canTransferOpportunity,
   childMonthlyExpenses,
   creditCardPaymentFor,
+  dealTransferFee,
   createGame,
   currentEconomicCycle,
   assetUpgradeCost,
@@ -115,6 +118,7 @@ import {
   livingEconomy,
   monthlyCashFlow,
   securityForAsset,
+  securityPrice,
   totalExpenses,
 } from './game-core/engine'
 import { finalPlayerScore, groupAssets, playerProgress, playerStatusText } from './game-core/selectors'
@@ -397,7 +401,7 @@ function FlashValue({ value, children, className = '' }: { value: number; childr
   )
 }
 
-function AssetList({ assets }: { assets: PlayerState['assets'] }) {
+function AssetList({ assets, prices }: { assets: PlayerState['assets']; prices?: Record<string, number> }) {
   const groupedAssets = groupAssets(assets)
   if (groupedAssets.length === 0) {
     return (
@@ -418,7 +422,9 @@ function AssetList({ assets }: { assets: PlayerState['assets'] }) {
             {asset.count > 1 && <b className="asset-count">×{asset.count}</b>}
           </span>
           <span className="asset-values">
-            <strong>{t('+{amount}/月', { amount: money(asset.totalCashFlow) })}</strong>
+            {asset.symbol && prices?.[asset.symbol] !== undefined && asset.totalCashFlow === 0
+              ? <strong className={prices[asset.symbol] >= (asset.costPerUnit ?? 0) ? 'positive-text' : 'negative-text'}>{t('市值 {amount}', { amount: money(prices[asset.symbol] * asset.count) })}</strong>
+              : <strong>{t('+{amount}/月', { amount: money(asset.totalCashFlow) })}</strong>}
             <small>{asset.symbol ? t('成本 {amount}/份', { amount: money(asset.costPerUnit ?? 0) }) : t('抵押 {amount}', { amount: money(asset.totalMortgage) })}</small>
           </span>
         </li>
@@ -752,6 +758,7 @@ function App() {
         afterBreakAd(() => {})
       }}
       onReset={reset}
+      onCelebrate={() => { if (audible) audio.current.play('milestone') }}
       onRequestReset={() => setConfirmation({
         message: t('删除当前存档并返回设置？'),
         confirmLabel: t('删除存档并重新开始'),
@@ -952,6 +959,12 @@ function DailyChallengeCard({ onDaily }: { onDaily: () => void }) {
   const results = loadDailyResults()
   const best = results[date]
   const streak = dailyStreak(results, date)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const minutesLeft = Math.max(0, Math.ceil((Date.parse(`${date}T00:00:00Z`) + 864e5 - now) / 60000))
   return (
     <section className="daily-card" aria-labelledby="daily-title">
       <span className="daily-icon"><CalendarDays /></span>
@@ -962,6 +975,7 @@ function DailyChallengeCard({ onDaily }: { onDaily: () => void }) {
         <p className="daily-best">
           {best ? best.won ? t('今日最佳：第 {rounds} 轮获胜', { rounds: best.rounds }) : t('今日最佳：未获胜 · 评分 {score}', { score: best.score }) : t('今天还没有挑战成绩')}
           {streak > 0 && <b>{t('连胜 {count} 天', { count: streak })}</b>}
+          {best && <span className="daily-countdown">{t('距下一次挑战 {hours} 小时 {minutes} 分', { hours: Math.floor(minutesLeft / 60), minutes: minutesLeft % 60 })}</span>}
         </p>
       </div>
       <button className="primary" onClick={onDaily}>{best ? t('再挑战一次') : t('开始今日挑战')}</button>
@@ -970,7 +984,7 @@ function DailyChallengeCard({ onDaily }: { onDaily: () => void }) {
 }
 
 // Records the finished daily challenge and offers a spoiler-free line to share.
-function DailySummary({ game }: { game: GameState }) {
+function DailySummary({ game, onCelebrate }: { game: GameState; onCelebrate: () => void }) {
   const date = game.setup.dailyChallenge!
   const result = dailyResultOf(game)
   // Compare with the best from before this game; recording is idempotent and may run more than once.
@@ -981,8 +995,8 @@ function DailySummary({ game }: { game: GameState }) {
   const rounds = result?.rounds
   const score = result?.score
   useEffect(() => {
-    if (won !== undefined && rounds !== undefined && score !== undefined) recordDailyResult(date, { won, rounds, score })
-  }, [date, won, rounds, score])
+    if (won !== undefined && rounds !== undefined && score !== undefined && recordDailyResult(date, { won, rounds, score })) onCelebrate()
+  }, [date, won, rounds, score, onCelebrate])
   if (!result) return null
   const newBest = isBetterDailyResult(result, previousBest)
   const streak = dailyStreak(loadDailyResults(), date)
@@ -1114,10 +1128,30 @@ type GameProps = {
   onDismissFastTrackCelebration: () => void
   onReset: () => void
   onRequestReset: () => void
+  onCelebrate: () => void
 }
 
-function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fastAi, spectating, soundEnabled, onMode, onLanguage, onFastAi, onSpectate, onSound, onMenu, onCommand, onDismissFastTrackCelebration, onReset, onRequestReset }: GameProps) {
+function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fastAi, spectating, soundEnabled, onMode, onLanguage, onFastAi, onSpectate, onSound, onMenu, onCommand, onDismissFastTrackCelebration, onReset, onRequestReset, onCelebrate }: GameProps) {
   const [showHelp, setShowHelp] = useState(false)
+  // Keyboard shortcuts: R rolls, E ends the turn, ? toggles the rules. Ignored while typing or in a dialog.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.target instanceof Element && event.target.closest('input, select, textarea, [contenteditable="true"]')) return
+      if (event.key === '?') {
+        setShowHelp((open) => !open)
+        return
+      }
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
+      const human = game.players[0]
+      if (game.players[game.currentPlayerIndex].id !== human.id || game.pendingDecision || game.winnerId || human.bankrupt) return
+      const key = event.key.toLowerCase()
+      if (key === 'r' && game.turnStage === 'awaiting-roll') onCommand({ type: 'ROLL_DICE', actorId: human.id })
+      else if (key === 'e' && game.turnStage === 'awaiting-end') onCommand({ type: 'END_TURN', actorId: human.id })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [game, onCommand])
   const [viewedPhase, setViewedPhase] = useState<'rat-race' | 'fast-track'>(() =>
     game.players[0].phase === 'fast-track' || game.players[0].fastTrackIncome > 0 ? 'fast-track' : 'rat-race',
   )
@@ -1195,7 +1229,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
         <Activity game={game} guide={guide && <section className="guide-card" aria-live="polite"><CircleHelp /><div><strong>{t(guide.title)}</strong><p>{t(guide.text, guide.params)}</p></div><button onClick={() => setSeenGuides((seen) => { const next = [...seen, guide.id]; storage.set('cashflow-lab-guides', JSON.stringify(next)); return next })}>{t('知道了')}</button></section>} />
         <OpponentDashboard game={game} />
       </div>
-      {showHelp && <div className="help-backdrop" role="presentation" onMouseDown={() => setShowHelp(false)}><section className="rules-panel" role="dialog" aria-modal="true" aria-labelledby="rules-title" onMouseDown={(event) => event.stopPropagation()}><header><div><small>{t('随时查阅')}</small><h2 id="rules-title">{t('游戏规则')}</h2></div><button className="icon-button" title={t('关闭规则')} onClick={() => setShowHelp(false)}>×</button></header><div className="rules-grid"><article><strong>{t('打工圈')}</strong><p>{t('经过发薪日结算月现金流。购买正现金流资产；被动收入严格超过总支出时进入自由快道。')}</p></article><article><strong>{t('贷款与破产')}</strong><p>{t('贷款以 $1,000 为单位，每月支付余额的 10%。现金为负时必须借款、清算或宣布破产。')}</p></article><article><strong>{t('市场与慈善')}</strong><p>{t('市场按座位顺序由符合条件的玩家响应。慈善换取未来三个有效回合的双骰选择。')}</p></article>{livingEconomy(game) && <article><strong>{t('信用卡与行情')}</strong><p>{t('额外支出可以刷信用卡，每月多付金额的 5% 直到还清。股票和基金价格每轮随经济周期变化，可随时按市价卖出。')}</p></article>}<article><strong>{t('自由快道')}</strong><p>{t('经营企业提高收入，出售企业筹集梦想资金。收入增加 {gain}，或买下自己的梦想即可获胜。', { gain: `$${(game.setup.pace === 'quick' ? QUICK_PACE.fastTrackGoalGain : STANDARD_FAST_TRACK_GOAL_GAIN).toLocaleString('en-US')}` })}</p></article></div><button className="primary wide" onClick={() => setShowHelp(false)}>{t('继续游戏')}</button></section></div>}
+      {showHelp && <div className="help-backdrop" role="presentation" onMouseDown={() => setShowHelp(false)}><section className="rules-panel" role="dialog" aria-modal="true" aria-labelledby="rules-title" onMouseDown={(event) => event.stopPropagation()}><header><div><small>{t('随时查阅')}</small><h2 id="rules-title">{t('游戏规则')}</h2></div><button className="icon-button" title={t('关闭规则')} onClick={() => setShowHelp(false)}>×</button></header><div className="rules-grid"><article><strong>{t('打工圈')}</strong><p>{t('经过发薪日结算月现金流。购买正现金流资产；被动收入严格超过总支出时进入自由快道。')}</p></article><article><strong>{t('贷款与破产')}</strong><p>{t('贷款以 $1,000 为单位，每月支付余额的 10%。现金为负时必须借款、清算或宣布破产。')}</p></article><article><strong>{t('市场与慈善')}</strong><p>{t('市场按座位顺序由符合条件的玩家响应。慈善换取未来三个有效回合的双骰选择。')}</p></article>{livingEconomy(game) && <article><strong>{t('信用卡与行情')}</strong><p>{t('额外支出可以刷信用卡，每月多付金额的 5% 直到还清。股票和基金价格每轮随经济周期变化，可随时按市价卖出。')}</p></article>}<article><strong>{t('自由快道')}</strong><p>{t('经营企业提高收入，出售企业筹集梦想资金。收入增加 {gain}，或买下自己的梦想即可获胜。', { gain: `$${(game.setup.pace === 'quick' ? QUICK_PACE.fastTrackGoalGain : STANDARD_FAST_TRACK_GOAL_GAIN).toLocaleString('en-US')}` })}</p></article></div><p className="shortcut-hint">{t('快捷键：R 掷骰子 · E 结束回合 · ? 打开或关闭规则')}</p><button className="primary wide" onClick={() => setShowHelp(false)}>{t('继续游戏')}</button></section></div>}
       {showFastTrackCelebration && (
         <div className="fast-track-celebration-backdrop" role="presentation">
           <section className="fast-track-celebration" role="dialog" aria-modal="true" aria-labelledby="fast-track-celebration-title">
@@ -1238,8 +1272,8 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
                 ? t('破产会淘汰当前玩家；你的本局操作已经结束。{outcome}', { outcome: winner ? t('{name} 成为最后未破产玩家并获胜。', { name: tn(winner.name) }) : t('其他 AI 将继续对局。') })
                 : t('本局已经产生胜者，所有游戏命令都已停止。')}
             </p>
-            {game.setup.dailyChallenge && <DailySummary game={game} />}
-            <AchievementSummary game={game} />
+            {game.setup.dailyChallenge && <DailySummary game={game} onCelebrate={onCelebrate} />}
+            <AchievementSummary game={game} onCelebrate={onCelebrate} />
             <GameReport game={game} />
             <div className="final-standing">
               {rankedPlayers.map((player, rank) => {
@@ -1368,7 +1402,7 @@ function Finance({ game, mode, onCommand }: { game: GameState; mode: DisplayMode
       <SecurityTicker game={game} onCommand={onCommand} />
       <section className="panel">
         <Title title={t('资产')} note={t('{count} 项持有', { count: human.assets.length })} />
-        <AssetList assets={human.assets} />
+        <AssetList assets={human.assets} prices={game.securityPrices} />
         {(human.fastTrackBusinesses?.length ?? 0) > 0 && <>
           <Title title={t('自由快道企业')} note={`${t('{count} 项持有', { count: human.fastTrackBusinesses!.length })}${fastTrackBusinessIncome(human.fastTrackBusinesses!).synergy > 0 ? t(' · 多产业协同 +{amount}', { amount: money(fastTrackBusinessIncome(human.fastTrackBusinesses!).synergy) }) : ''}`} />
           <FastTrackBusinessList businesses={human.fastTrackBusinesses!} />
@@ -1497,7 +1531,7 @@ function OpponentDashboard({ game }: { game: GameState }) {
                   </dl>
                   <div className="opponent-assets">
                     <small>{t('资产与每月现金流')}</small>
-                    <AssetList assets={player.assets} />
+                    <AssetList assets={player.assets} prices={game.securityPrices} />
                   </div>
                 </div>
               )}
@@ -1592,13 +1626,24 @@ function TrackBoard({ game, phase, decision, guided, fastAi }: { game: GameState
   )
 }
 
+const AI_REASONS_KEY = 'cashflow-lab-ai-reasons'
+const isAiReason = (entry: GameState['logs'][number]) => entry.text?.key === 'AI 判断：{reason}' || entry.message.startsWith('AI 判断：')
+
 function Activity({ game, guide }: { game: GameState; guide: ReactNode }) {
+  const [showReasons, setShowReasons] = useState(() => storage.get(AI_REASONS_KEY) === 'on')
+  const toggleReasons = () => setShowReasons((current) => {
+    storage.set(AI_REASONS_KEY, current ? 'off' : 'on')
+    return !current
+  })
   return (
     <aside className="activity-panel">
       {guide}
-      <Title title={t('事件记录')} note={t('最新在前')} />
+      <div className="section-title">
+        <span>{t('事件记录')}</span>
+        <button type="button" className="reasons-toggle" aria-pressed={showReasons} onClick={toggleReasons}>{showReasons ? t('隐藏 AI 思路') : t('显示 AI 思路')}</button>
+      </div>
       <div className="activity-list">
-        {[...game.logs].reverse().map((entry) => {
+        {[...game.logs].reverse().filter((entry) => showReasons || !isAiReason(entry)).map((entry) => {
           const playerIndex = game.players.findIndex((item) => item.id === entry.playerId)
           const player = game.players[playerIndex]
           return (
@@ -1671,8 +1716,33 @@ function Decision({
         </div>
         <div className="decision-actions">
           <button className="secondary" onClick={() => onCommand({ type: 'PASS_OPPORTUNITY', actorId: player.id })}>{t('放弃')}</button>
+          {canTransferOpportunity(game, player.id, asset) && <button className="secondary transfer-button" title={t('交给其他玩家依次决定是否接手；接手者付给你中介费。')} onClick={() => onCommand({ type: 'TRANSFER_OPPORTUNITY', actorId: player.id })}><Forward />{t('转让 · 中介费 {amount}', { amount: money(dealTransferFee(asset)) })}</button>}
           {shortfallLoan > 0 && <button className="loan" disabled={!loanAvailable} title={loanAvailable ? t('借款后仍需承担每月 10% 的银行贷款支出') : t('该贷款会使月现金流为负')} onClick={() => onCommand({ type: 'TAKE_LOAN', actorId: player.id, amount: shortfallLoan })}>{t('借款 {amount}', { amount: money(shortfallLoan) })}</button>}
           <button className="primary compact" disabled={player.cash < asset.downPayment} onClick={() => onCommand({ type: 'BUY_OPPORTUNITY', actorId: player.id })}>{t('购买')}</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (decision?.type === 'deal-offer') {
+    const asset = decision.opportunity
+    const seller = game.players.find((candidate) => candidate.id === decision.sellerId)
+    const total = asset.downPayment + decision.fee
+    return (
+      <div className="decision deal">
+        <span className="decision-icon"><Forward /></span>
+        <div className="decision-copy">
+          <small>{t('{name} 转让机会', { name: tn(seller?.name ?? '') })} · {t(assetKindLabels[asset.kind ?? 'real-estate'])}</small><h2>{tn(asset.name)}</h2><p>{tn(asset.description)}</p>
+          <div className="metrics">
+            <span>{t('首付')}<strong>{money(asset.downPayment)}</strong></span>
+            <span>{t('中介费')}<strong>{money(decision.fee)}</strong></span>
+            <span>{t('月现金流')}<strong className="positive-text">+{money(asset.cashFlow)}</strong></span>
+          </div>
+          {mode === 'guided' && <p className="guide">{t('接手需要一次付清首付和中介费，共 {amount}；现在不能为此借款。', { amount: money(total) })}</p>}
+        </div>
+        <div className="decision-actions">
+          <button className="secondary" onClick={() => onCommand({ type: 'DECLINE_DEAL_OFFER', actorId: player.id })}>{t('不要')}</button>
+          <button className="primary compact" disabled={player.cash < total} title={player.cash < total ? t('现金不足') : undefined} onClick={() => onCommand({ type: 'ACCEPT_DEAL_OFFER', actorId: player.id })}>{t('接手 {amount}', { amount: money(total) })}</button>
         </div>
       </div>
     )
@@ -1742,6 +1812,10 @@ function Decision({
         <span className="decision-icon danger"><BanknoteArrowDown /></span>
         <div className="decision-copy">
           <small>{t('资不抵债处理')}</small><h2>{t('现金缺口 {amount}', { amount: money(Math.abs(player.cash)) })}</h2><p>{t(decision.reason as UiKey)}。{loanAvailable ? t('可以借款补足，') : t('继续借款会使月现金流为负，请')}{t('按首付 50% 清算资产，或宣布破产退出。')}</p>
+          {livingEconomy(game) && player.assets.some((asset) => securityForAsset(asset)) && <div className="liquidation-actions security-sales">{player.assets.filter((asset) => securityForAsset(asset)).map((asset) => {
+            const value = (securityPrice(game, asset.symbol!) ?? 0) * (asset.quantity ?? 1)
+            return <button key={asset.id} onClick={() => onCommand({ type: 'SELL_SECURITY', actorId: player.id, assetId: asset.id })}>{t('按市价卖出 {asset} · 收回 {amount}', { asset: tn(asset.name), amount: money(value) })}</button>
+          })}</div>}
           {player.assets.length > 0 && <div className="liquidation-actions">{groupAssets(player.assets).map((asset) => <button key={asset.id} onClick={() => onCommand({ type: 'LIQUIDATE_ASSET', actorId: player.id, assetId: asset.id })}>{t('清算 {asset}', { asset: tn(asset.name) })}{asset.count > 1 ? ` ×${asset.count}` : ''}{t(' · 回收 {amount}', { amount: money(asset.downPayment * 0.5) })}</button>)}</div>}
         </div>
         <div className="decision-actions">
@@ -1839,7 +1913,7 @@ function Decision({
             <label className="strategy-control" tabIndex={0}><select aria-label={t('选择自由快道保险')} value={fastTrackInsurance} disabled={actionUsed || Boolean(player.insurance)} onChange={(event) => setFastTrackInsurance(event.target.value as typeof fastTrackInsurance)}><option value="maintenance">{t('维护')}</option><option value="lawsuit">{t('诉讼')}</option></select><button aria-describedby="risk-help" disabled={actionUsed || Boolean(player.insurance) || player.cash < 25000} onClick={() => onCommand({ type: 'FAST_TRACK_MANAGE_RISK', actorId: player.id, insurance: fastTrackInsurance })}><ShieldCheck />{t('风控')}</button><span id="risk-help" className="strategy-tooltip" role="tooltip">{t(fastTrackInsurance === 'maintenance' ? '支付 {cost} 获得维护保险；下一次重大维护损失由保险承担 {rate}% 后自动消耗。' : '支付 {cost} 获得诉讼保险；下一次商业诉讼损失由保险承担 {rate}% 后自动消耗。', { cost: money(25000), rate: fastTrackInsuranceCoverage })}{player.insurance ? t('当前已有保险，不能重复配置。') : player.cash < 25000 ? t(' 当前现金还差 {amount}。', { amount: money(25000 - player.cash) }) : t('根据想防范的风险选择保险；执行后仍可掷骰。')}</span></label>
             <span className="strategy-control" tabIndex={0}><button aria-describedby="dream-preparation-help" disabled={actionUsed || dreamPreparation >= 3 || player.cash < 50000} onClick={() => onCommand({ type: 'FAST_TRACK_PREPARE_DREAM', actorId: player.id })}><Flag />{t('梦想准备 {level}/3', { level: dreamPreparation })}</button><span id="dream-preparation-help" className="strategy-tooltip" role="tooltip">{t('每次支付 {cost} 增加 1 层。达到 3/3 不会直接获胜，只会解锁“移动途中经过自己的梦想格也可购买”，不再要求精确停留。触发后仍须支付梦想“{dream}”的价格 {price}。', { cost: money(50000), dream: tn(player.dream), price: money(dreamCost) })}{dreamPreparation >= 3 ? player.cash >= dreamCost ? t('准备已完成；经过梦想格时可选择支付并获胜。') : t('准备已完成；当前购买梦想还差 {amount}。', { amount: money(dreamCost - player.cash) }) : player.cash < 50000 ? t('当前推进准备还差 {amount}。', { amount: money(50000 - player.cash) }) : t('执行后仍可掷骰。')}</span></span>
           </div>}
-          {player.charityTurns > 0 && player.phase === 'rat-race' ? <div className="dice-options"><button className="roll secondary" onClick={() => onCommand({ type: 'ROLL_DICE', actorId: player.id, diceCount: 1 })}><Dice5 />{t('1 骰')}</button><button className="roll" onClick={() => onCommand({ type: 'ROLL_DICE', actorId: player.id, diceCount: 2 })}><Dice5 />{t('2 骰')}</button></div> : <button className="roll" onClick={() => onCommand({ type: 'ROLL_DICE', actorId: player.id })}><Dice5 />{t('掷骰子')}</button>}
+          {player.charityTurns > 0 && player.phase === 'rat-race' ? <div className="dice-options"><button className="roll secondary" onClick={() => onCommand({ type: 'ROLL_DICE', actorId: player.id, diceCount: 1 })}><Dice5 />{t('1 骰')}</button><button className="roll" onClick={() => onCommand({ type: 'ROLL_DICE', actorId: player.id, diceCount: 2 })}><Dice5 />{t('2 骰')}</button></div> : <button className="roll" title={t('快捷键 R')} onClick={() => onCommand({ type: 'ROLL_DICE', actorId: player.id })}><Dice5 />{t('掷骰子')}</button>}
         </div>
       </div>
     )
@@ -1850,7 +1924,7 @@ function Decision({
       <div><small>{t('行动已完成')}</small><h2>{t('查看本回合结果')}</h2><p>{t('确认现金与事件记录后，轮到下一位玩家。')}</p></div>
       <div className="turn-actions">
         {player.phase === 'rat-race' && player.bankLoan > 0 && <div className="bank-controls"><Landmark /><input aria-label={t('还款金额')} type="number" min="1000" step="1000" value={loanAmount} onChange={(event) => setLoanAmount(Math.max(1000, Math.floor(Number(event.target.value) / 1000) * 1000 || 1000))} /><button className="loan" disabled={loanAmount > player.cash || loanAmount > player.bankLoan} onClick={() => onCommand({ type: 'REPAY_LOAN', actorId: player.id, amount: loanAmount })}>{t('还款')}</button></div>}
-        <button className="primary compact" onClick={() => onCommand({ type: 'END_TURN', actorId: player.id })}>{t('结束回合')}<ChevronRight /></button>
+        <button className="primary compact" title={t('快捷键 E')} onClick={() => onCommand({ type: 'END_TURN', actorId: player.id })}>{t('结束回合')}<ChevronRight /></button>
       </div>
     </div>
   )

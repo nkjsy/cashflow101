@@ -64,8 +64,11 @@ export const buildGameReport = (game: GameState, playerId = game.players[0]?.id)
       if (command.actorId !== playerId) return
 
       const decision = before.pendingDecision
-      if (command.type === 'BUY_OPPORTUNITY' && decision?.type === 'opportunity') {
-        const deal = decision.opportunity
+      const bought = command.type === 'BUY_OPPORTUNITY' && decision?.type === 'opportunity'
+        ? decision.opportunity
+        : command.type === 'ACCEPT_DEAL_OFFER' && decision?.type === 'deal-offer' ? decision.opportunity : undefined
+      if (bought) {
+        const deal = bought
         found.firstAsset ??= { kind: 'first-asset', round, asset: deal.name, cashFlow: deal.cashFlow }
         const dealReturn = annualReturn(deal)
         if (deal.cashFlow > 0 && dealReturn > (found.bestDeal?.annualReturn ?? -1)) {

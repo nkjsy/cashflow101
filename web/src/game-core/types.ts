@@ -155,6 +155,8 @@ export type FastTrackRisk = {
 export type PendingDecision =
   | { type: 'deal-choice'; playerId: string }
   | { type: 'opportunity'; playerId: string; opportunity: Opportunity }
+  // Living economy: a drawn deal offered to the other players in seat order for a finder's fee.
+  | { type: 'deal-offer'; playerId: string; sellerId: string; opportunity: Opportunity; fee: number; responderIds: string[] }
   | { type: 'charity'; playerId: string; donation: number }
   | { type: 'doodad'; playerId: string; cardId: string; cost: number; careSavings: number }
   | { type: 'market'; playerId: string; assetId: string; assetName: string; salePrice: number; levelPremium?: number; cardId: string; responderIds: string[] }
@@ -224,6 +226,9 @@ export type GameCommand =
   | { type: 'DRAW_DEAL'; actorId: string; dealSize: DealSize }
   | { type: 'BUY_OPPORTUNITY'; actorId: string }
   | { type: 'PASS_OPPORTUNITY'; actorId: string }
+  | { type: 'TRANSFER_OPPORTUNITY'; actorId: string }
+  | { type: 'ACCEPT_DEAL_OFFER'; actorId: string }
+  | { type: 'DECLINE_DEAL_OFFER'; actorId: string }
   | { type: 'CHOOSE_CHARITY'; actorId: string; donate: boolean }
   | { type: 'TAKE_LOAN'; actorId: string; amount: number }
   | { type: 'REPAY_LOAN'; actorId: string; amount: number }

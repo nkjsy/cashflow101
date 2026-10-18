@@ -19,6 +19,10 @@ export const LOG_EN = {
   ' 当前无需支付。': ' Nothing to pay this time.',
   '{card}：{description} 需支付 ${cost}{care}，可以现金支付或刷信用卡。': '{card}: {description} It costs ${cost}{care}. Pay cash or put it on a credit card.',
   '现金支付 ${cost}。': 'Paid ${cost} in cash.',
+  '把 {deal} 转让给其他玩家，接手者需支付中介费 ${fee}。': 'Offered {deal} to the other players for a ${fee} finder’s fee.',
+  '放弃接手 {deal}。': 'Passed on taking over {deal}.',
+  '无人接手 {deal}，机会作废。': 'Nobody took {deal}, so the deal lapses.',
+  '接手 {deal}，向 {seller} 支付中介费 ${fee}。': 'Took over {deal} and paid {seller} a ${fee} finder’s fee.',
   '刷信用卡支付 ${cost}，每月还款增加 ${payment}。': 'Charged ${cost} to a credit card. Monthly payments go up by ${payment}.',
   '还清信用卡 ${amount}，每月支出减少 ${payment}。': 'Paid off ${amount} of credit card debt. Monthly expenses drop by ${payment}.',
   '按市价卖出 {asset} {quantity} 份，每份 ${price}，收回 ${proceeds}{bonus}，{result}。': 'Sold {quantity} {quantity|unit|units} of {asset} at ${price} each for ${proceeds}{bonus}: {result}.',
@@ -99,6 +103,7 @@ export const LOG_EN = {
   '先尝试可持续借款，再清算首付最高的资产，最后才宣布破产。': 'Tries sustainable borrowing first, then liquidates the largest down payment, and declares bankruptcy only as a last resort.',
   '{style}；专家会优先保留实现所选梦想所需的现金。': '{style}; Expert AIs hold back cash for their dream.',
   '现金足以支付所选梦想时立即实现，否则保留现金。': 'Buys its dream as soon as it can afford it; otherwise keeps the cash.',
+  '{style}，机会有吸引力且付完首付和中介费后仍有现金储备时才接手。': '{style}: takes the deal only if it’s attractive and the down payment plus fee still leave a cash cushion.',
   '{style}，现金充足时直接付款，否则刷信用卡保留现金储备。': '{style}: pay cash when reserves allow, otherwise charge it to keep a cash cushion.',
   '根据现金储备处理当前选择。': 'Decides based on its cash reserve.',
 } as const

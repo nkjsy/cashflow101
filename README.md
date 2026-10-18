@@ -2,6 +2,17 @@
 
 一个以文字和财务报表为主的单机个人理财策略游戏。目前支持引导/标准模式，以及一名玩家与 1–3 名基础 AI 对战。
 
+## 玩法亮点
+
+- **活的经济**：额外支出可以现金付或刷信用卡（每月多付 5% 直到还清）；NOVA、HARB、CITY 价格每轮随经济周期变化，可随时按市价卖出。
+- **机会卡转让**：买不起或不想要的地产、企业机会可以转让给其他玩家，接手者付中介费。
+- **局后报告**：结束时画出被动收入、总支出和现金曲线，列出关键决策。
+- **每日挑战**：每天（UTC）全球同一副牌、同一组骰子，记录当日最佳和连胜天数。
+- **成就**：14 个成就，3 个解锁程序员、6 个解锁厨师两个新职业。
+- **快捷键**：R 掷骰子、E 结束回合、? 打开规则。
+
+新规则和新卡只用于新开的对局；旧存档继续按原规则运行，回放结果不变。
+
 ## 快速运行
 
 运行前需要安装 [Node.js](https://nodejs.org/) 20 或更高版本。
@@ -41,6 +52,9 @@ npm run simulate -- --games 10000 --max-rounds 100 --seed 1 --ai 3
 
 # 批量模拟快速局（用于校准 QUICK_PACE 参数）
 npm run simulate -- --games 2000 --seed 1 --ai 1 --pace quick
+
+# 默认模拟新规则（living-v1）；加 --economy legacy 对比旧规则
+npm run simulate -- --games 2000 --seed 1 --ai 3 --economy legacy
 
 # 静态检查
 npm run lint
@@ -90,4 +104,4 @@ Vite 会自动选择其他端口。请打开终端中 `Local` 后显示的实际
 
 ### 浏览器测试找不到 Edge
 
-当前 Playwright 配置使用 Windows 自带的 Microsoft Edge。请先确认 Edge 已安装，或者修改 `web/playwright.config.ts` 中的浏览器通道。
+Playwright 在 Windows 上使用系统自带的 Microsoft Edge，请先确认 Edge 已安装。macOS 和 Linux 使用 Playwright 的 Chromium（`npx playwright install chromium`），也可以设置环境变量 `PW_CHROMIUM_PATH` 指向已安装的 Chromium。

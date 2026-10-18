@@ -488,6 +488,24 @@ export const UI_EN = {
   每日不缺席: 'Daily Regular',
   '每日挑战连胜 3 天。': 'Win the daily challenge 3 days in a row.',
 
+  // Deal transfers, log, shortcuts
+  '市值 {amount}': 'Worth {amount}',
+  '隐藏 AI 思路': 'Hide AI reasoning',
+  '显示 AI 思路': 'Show AI reasoning',
+  '交给其他玩家依次决定是否接手；接手者付给你中介费。': 'Offer the deal to the other players in turn; whoever takes it pays you a finder’s fee.',
+  '转让 · 中介费 {amount}': 'Pass on · {amount} fee',
+  '{name} 转让机会': 'Deal offered by {name}',
+  中介费: 'Finder’s fee',
+  '接手需要一次付清首付和中介费，共 {amount}；现在不能为此借款。': 'Taking it over costs the down payment plus the fee, {amount} in all, and you can’t borrow for it now.',
+  不要: 'No thanks',
+  现金不足: 'Not enough cash',
+  '接手 {amount}': 'Take it for {amount}',
+  '按市价卖出 {asset} · 收回 {amount}': 'Sell {asset} at market · get {amount}',
+  '快捷键：R 掷骰子 · E 结束回合 · ? 打开或关闭规则': 'Shortcuts: R to roll · E to end your turn · ? to show or hide the rules',
+  '快捷键 R': 'Shortcut: R',
+  '快捷键 E': 'Shortcut: E',
+  '距下一次挑战 {hours} 小时 {minutes} 分': 'Next challenge in {hours}h {minutes}m',
+
   // Daily challenge
   每日挑战: 'Daily Challenge',
   '今天 {date} · 全球同一副牌、同一组骰子': 'Today, {date} · same deck and dice for everyone',

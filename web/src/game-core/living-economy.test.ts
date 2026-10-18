@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BIG_DEALS, DOODADS, EXPANSION_CARD_IDS, FAST_TRACK_BUSINESSES, FAST_TRACK_RISKS, MARKETS, SECURITY_MARKET, SMALL_DEALS } from './data'
 import { createGame as createSeededGame, executeCommand, replayGame, totalExpenses } from './engine'
 import { chooseAutoplayCommand } from '../simulation/simulator'
+import { playBasicAiTurn } from './ai'
 import type { Asset, GameCommand, GameState } from './types'
 
 const createLivingGame = (profession = '教师') => {
@@ -170,6 +171,61 @@ describe('living economy', () => {
     // $1,200 holiday × 0.75 lifestyle factor (low expenses) × 0.75 chef discount, rounded to $50.
     expect(chef.pendingDecision).toMatchObject({ type: 'doodad', cost: 700 })
     expect(teacher.pendingDecision).toMatchObject({ type: 'doodad', cost: 1000 })
+  })
+
+  it('lets a player pass a drawn deal on to the others for a finder’s fee', () => {
+    const state = createSeededGame(2, 42, undefined, '教师', 'standard', undefined, 'scaled-equity', 'accelerated', 'global-v2', 'strategy-v1', undefined, 'standard', 'living-v1')
+    state.currentPlayerIndex = 0
+    const laundry = SMALL_DEALS.find((deal) => deal.id === 'asset-neighborhood-laundry')!
+    state.players[1].cash = 20000
+    state.pendingDecision = { type: 'opportunity', playerId: 'player-human', opportunity: laundry }
+    state.turnStage = 'awaiting-decision'
+    const offered = run(state, { type: 'TRANSFER_OPPORTUNITY', actorId: 'player-human' })
+    expect(offered.pendingDecision).toMatchObject({ type: 'deal-offer', playerId: 'player-ai-1', sellerId: 'player-human', fee: 500, responderIds: ['player-ai-1', 'player-ai-2'] })
+
+    const passedOn = run(offered, { type: 'DECLINE_DEAL_OFFER', actorId: 'player-ai-1' })
+    expect(passedOn.pendingDecision).toMatchObject({ type: 'deal-offer', playerId: 'player-ai-2', responderIds: ['player-ai-2'] })
+    const lapsed = run(passedOn, { type: 'DECLINE_DEAL_OFFER', actorId: 'player-ai-2' })
+    expect(lapsed.pendingDecision).toBeNull()
+    expect(lapsed.turnStage).toBe('awaiting-end')
+
+    const buyerCash = offered.players[1].cash
+    const sellerCash = offered.players[0].cash
+    const taken = run(offered, { type: 'ACCEPT_DEAL_OFFER', actorId: 'player-ai-1' })
+    expect(taken.players[1].cash).toBe(buyerCash - laundry.downPayment - 500)
+    expect(taken.players[0].cash).toBe(sellerCash + 500)
+    expect(taken.players[1].assets.map((asset) => asset.sourceId)).toEqual(['asset-neighborhood-laundry'])
+    expect(taken.currentPlayerIndex).toBe(0)
+    expect(taken.turnStage).toBe('awaiting-end')
+  })
+
+  it('only transfers property and business deals in the living economy', () => {
+    const living = createLivingGame()
+    living.pendingDecision = { type: 'opportunity', playerId: 'player-human', opportunity: SMALL_DEALS.find((deal) => deal.id === 'stock-nova')! }
+    living.turnStage = 'awaiting-decision'
+    expect(executeCommand(living, { type: 'TRANSFER_OPPORTUNITY', actorId: 'player-human' }).ok).toBe(false)
+
+    const legacy = createSeededGame(1, 42)
+    legacy.currentPlayerIndex = 0
+    legacy.pendingDecision = { type: 'opportunity', playerId: 'player-human', opportunity: SMALL_DEALS[0] }
+    legacy.turnStage = 'awaiting-decision'
+    expect(executeCommand(legacy, { type: 'TRANSFER_OPPORTUNITY', actorId: 'player-human' }).ok).toBe(false)
+  })
+
+  it('does not let an AI answering an offer settle the human’s turn', () => {
+    const state = createLivingGame()
+    state.players[0].bankLoan = 2000
+    state.players[0].cash = 20000
+    state.players[1].cash = 50000
+    state.pendingDecision = { type: 'opportunity', playerId: 'player-human', opportunity: SMALL_DEALS.find((deal) => deal.id === 'asset-neighborhood-laundry')! }
+    state.turnStage = 'awaiting-decision'
+    const offered = run(state, { type: 'TRANSFER_OPPORTUNITY', actorId: 'player-human' })
+    const answered = playBasicAiTurn(offered)
+
+    expect(answered.pendingDecision).toBeNull()
+    expect(answered.players[0].bankLoan).toBe(2000)
+    expect(answered.currentPlayerIndex).toBe(0)
+    expect(answered.commandHistory.filter((command) => command.actorId === 'player-human').map((command) => command.type)).toEqual(['TRANSFER_OPPORTUNITY'])
   })
 
   it('can sell a security to cover a cash shortfall', () => {
