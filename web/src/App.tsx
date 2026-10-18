@@ -8,6 +8,8 @@ import {
   CalendarDays,
   Calculator,
   ChartCandlestick,
+  ChefHat,
+  Code,
   Copy,
   Check,
   ChevronDown,
@@ -40,6 +42,7 @@ import {
   Star,
   Stethoscope,
   TrendingUp,
+  Trophy,
   TriangleAlert,
   UserX,
   Volume2,
@@ -54,6 +57,9 @@ import './game-polish.css'
 import { GameAudio } from './game-audio'
 import { useWalkingPieces } from './board-motion'
 import { GameReport } from './GameReport'
+import { AchievementSummary, AchievementsPanel } from './Achievements'
+import { isProfessionUnlocked, loadAchievements } from './achievements'
+import { ACHIEVEMENT_IDS } from './game-core/achievements'
 import { createDailyGame, dailyDate, dailyResultOf, dailyStreak, isBetterDailyResult, loadDailyResults, recordDailyResult } from './daily'
 import { sessionStore, storage } from './platform/storage'
 import { breakAdDue, platform, showBreakAd } from './platform'
@@ -72,8 +78,11 @@ import {
   FAST_TRACK_RISKS,
   FAST_TRACK_DREAM_COSTS,
   MARKETS,
+  ALL_PROFESSIONS,
   PROFESSIONS,
+  UNLOCKABLE_PROFESSIONS,
   SECURITY_MARKET,
+  type Profession,
   SMALL_DEALS,
   professionByTitle,
   fastTrackDreamCost,
@@ -175,6 +184,8 @@ const professionPassives: Record<string, UiKey> = {
   警员: '慈善捐赠的双骰效果额外持续 1 回合。',
   医生: '失业保险理赔比例从 50% 提高到 75%。',
   律师: '合同谈判：市场出售成交价提高 5%，每次最多 $1,000。',
+  程序员: '量化交易：按市价卖出股票和基金时多得 5%，每次最多 $1,000。',
+  厨师: '精打细算：额外支出降低 25%（按孩子计费的部分不变）。',
 }
 
 const assetKindLabels: Record<AssetKind, UiKey> = {
@@ -261,6 +272,8 @@ const professionIcons: Record<string, LucideIcon> = {
   警员: ShieldCheck,
   医生: Hospital,
   律师: Scale,
+  程序员: Code,
+  厨师: ChefHat,
 }
 
 const loadGame = (): GameState | null => {
@@ -801,6 +814,8 @@ function LanguageToggle({ language, onLanguage }: { language: Language; onLangua
 
 function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalities, dream, profession, hasSave, onMode, onPace, onLanguage, onAi, onAiDifficulty, onAiPersonality, onDream, onProfession, onStart, onDaily, onResume }: StartProps) {
   const saveNotice = sessionStore.get('cashflow-lab-save-notice')
+  const [showAchievements, setShowAchievements] = useState(false)
+  const achievementCount = Object.keys(loadAchievements()).length
   return (
     <main className="start-shell">
       <header className="brand-bar">
@@ -820,6 +835,7 @@ function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalit
             </div>
             <div className="setup-hero-actions">
               <span>{pace === 'quick' ? t('单机 · 约 12 分钟') : t('单机 · 约 35 分钟')}</span>
+              <button className="achievements-button" onClick={() => setShowAchievements(true)}><Trophy />{t('成就 {count}/{total}', { count: achievementCount, total: ACHIEVEMENT_IDS.length })}</button>
               {hasSave && (
                 <button className="resume" onClick={onResume}>
                   <span><Play />{t('继续上次游戏')}</span><ChevronRight />
@@ -905,6 +921,9 @@ function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalit
                 <legend>{t('你的职业')}</legend>
                 <select aria-label={t('选择职业')} className="dream-select" value={profession} onChange={(event) => onProfession(event.target.value)}>
                   {PROFESSIONS.map((item) => <option key={item.title} value={item.title}>{t('{profession} · 月结余 {amount}', { profession: tn(item.title), amount: money(item.salary - item.expenses) })}</option>)}
+                  {UNLOCKABLE_PROFESSIONS.map((item) => isProfessionUnlocked(item.title, achievementCount)
+                    ? <option key={item.title} value={item.title}>{t('{profession} · 月结余 {amount}', { profession: tn(item.title), amount: money(item.salary - item.expenses) })}</option>
+                    : <option key={item.title} value={item.title} disabled>{t('🔒 {profession} · 需要 {count} 个成就', { profession: tn(item.title), count: item.requiredAchievements })}</option>)}
                 </select>
                 <ProfessionRadar profession={profession} />
               </fieldset>
@@ -922,6 +941,7 @@ function StartScreen({ mode, pace, language, aiCount, aiDifficulty, aiPersonalit
           </div>
         </div>
       </section>
+      {showAchievements && <AchievementsPanel onClose={() => setShowAchievements(false)} />}
     </main>
   )
 }
@@ -989,8 +1009,6 @@ function DailySummary({ game }: { game: GameState }) {
   )
 }
 
-type Profession = (typeof PROFESSIONS)[number]
-
 const radarDimensions: Array<{ label: UiKey; value: (item: Profession) => number }> = [
   { label: '收入', value: (item: Profession) => item.salary },
   { label: '月结余', value: (item: Profession) => item.salary - item.expenses },
@@ -1009,7 +1027,7 @@ function ProfessionRadar({ profession }: { profession: string }) {
     return `${centerX + Math.cos(angle) * radius * scale},${centerY + Math.sin(angle) * radius * scale}`
   }
   const scores = radarDimensions.map((dimension) => {
-    const values = PROFESSIONS.map(dimension.value)
+    const values = ALL_PROFESSIONS.map(dimension.value)
     const minimum = Math.min(...values)
     const maximum = Math.max(...values)
     return 0.18 + (dimension.value(selected) - minimum) / (maximum - minimum) * 0.82
@@ -1221,6 +1239,7 @@ function GameScreen({ game, mode, language, notice, showFastTrackCelebration, fa
                 : t('本局已经产生胜者，所有游戏命令都已停止。')}
             </p>
             {game.setup.dailyChallenge && <DailySummary game={game} />}
+            <AchievementSummary game={game} />
             <GameReport game={game} />
             <div className="final-standing">
               {rankedPlayers.map((player, rank) => {

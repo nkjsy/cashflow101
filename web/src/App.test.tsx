@@ -20,6 +20,20 @@ describe('cashflow app', () => {
   })
   afterEach(cleanup)
 
+  it('keeps unlockable professions locked until enough achievements are earned', () => {
+    const { unmount } = render(<App />)
+    expect(screen.getByRole('option', { name: /程序员 · 需要 3 个成就/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '成就 0/14' })).toBeInTheDocument()
+    unmount()
+
+    localStorage.setItem('cashflow-lab-achievements', JSON.stringify({ 'first-win': '2026-10-18', 'clean-exit': '2026-10-18', 'cash-only': '2026-10-18' }))
+    render(<App />)
+    expect(screen.getByRole('option', { name: /程序员 · 月结余/ })).toBeEnabled()
+    expect(screen.getByRole('option', { name: /厨师 · 需要 6 个成就/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '成就 3/14' }))
+    expect(screen.getByRole('dialog', { name: '成就' })).toHaveTextContent('再获得 3 个成就即可解锁厨师。')
+  })
+
   it('starts today’s daily challenge and records the finished result', () => {
     const today = dailyDate()
     const { unmount } = render(<App />)

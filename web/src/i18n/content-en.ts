@@ -24,6 +24,10 @@ export const CONTENT_EN: Readonly<Record<string, string>> = {
   '收入、储蓄与家庭支出较为均衡。': 'Income, savings and family costs are well balanced.',
   '收入很高，但教育贷款和固定支出压力最大。': 'Very high income, but the heaviest student loans and fixed costs.',
   '月结余与初始储蓄较高，但债务支出较重。': 'Strong surplus and savings, but heavy debt payments.',
+  程序员: 'Software Developer',
+  '收入较高，擅长看行情，但生活成本也不低。': 'Earns well and reads the market, but living costs are high too.',
+  厨师: 'Chef',
+  '收入不高，但精打细算，额外支出更少。': 'A modest income, but thrifty: splurges cost less.',
 
   // Dreams
   开一家社区图书馆: 'Open a community library',

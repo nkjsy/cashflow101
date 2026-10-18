@@ -16,6 +16,8 @@ import {
   MARKETS,
   PROFESSIONS,
   SECURITY_MARKET,
+  type Profession,
+  professionByTitle,
   SMALL_DEALS,
 } from './data'
 import type {
@@ -144,6 +146,10 @@ export const insuranceCoverageRate = (player: PlayerState, insurance: InsuranceK
     ? 0.75
     : 0.5
 
+// Software developer skill: securities sold at market fetch 5% more, up to $1,000 per sale.
+export const developerTradingBonus = (player: PlayerState, proceeds: number) =>
+  player.profession === '程序员' ? Math.min(1000, Math.round(proceeds * 0.05 / 100) * 100) : 0
+
 export const lawyerNegotiationBonus = (player: PlayerState, salePrice: number) =>
   player.profession === '律师' ? Math.min(1000, Math.round(salePrice * 0.05 / 100) * 100) : 0
 
@@ -233,7 +239,7 @@ export const freedomProgress = (player: PlayerState) => {
 const createPlayer = (
   index: number,
   isHuman: boolean,
-  profession: (typeof PROFESSIONS)[number],
+  profession: Profession,
   dream: string,
   longTermGoal: LongTermGoalId,
   aiPersonality?: AiPersonality,
@@ -320,7 +326,7 @@ export const createGame = (
   const selectedHumanLongTermGoal = humanLongTermGoal ?? longTermGoals[longTermGoalOffset]
   const startingPlayer = nextRandom(markets.seed)
   const playerCount = aiCount + 1
-  const selectedProfession = PROFESSIONS.find((profession) => profession.title === humanProfession)
+  const selectedProfession = humanProfession ? professionByTitle(humanProfession) : undefined
   const orderedProfessions = selectedProfession
     ? [selectedProfession, ...professions.items.filter((profession) => profession.title !== selectedProfession.title)]
     : professions.items
@@ -605,7 +611,9 @@ const doodadCharge = (state: GameState, player: PlayerState, card: DoodadCard) =
   const lifestyleFactor = state.setup.ratRaceBalanceVersion === 'global-v2'
     ? Math.min(1.5, Math.max(0.75, player.baseExpenses / 3000))
     : 1
-  const lifestyleCost = Math.round(card.cost * lifestyleFactor / 50) * 50
+  // Chef skill: lifestyle Splurges cost 25% less; per-child costs are unchanged.
+  const chefRate = player.profession === '厨师' ? 0.75 : 1
+  const lifestyleCost = Math.round(card.cost * lifestyleFactor * chefRate / 50) * 50
   const originalCost = lifestyleCost + (card.perChild ?? 0) * player.babies
   const careSavings = player.profession === '护士' && card.id === 'doodad-dental'
     ? Math.round(originalCost * 0.5 / 50) * 50
@@ -1139,17 +1147,19 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     const price = asset?.symbol && securityForAsset(asset) ? securityPrice(state, asset.symbol) : undefined
     if (!asset || price === undefined) return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
     const quantity = asset.quantity ?? 1
-    const proceeds = price * quantity
+    const tradingBonus = developerTradingBonus(actor, price * quantity)
+    const proceeds = price * quantity + tradingBonus
     const profit = proceeds - (asset.costPerUnit ?? asset.downPayment) * quantity
     let nextState = updatePlayer(state, actor.id, (player) => {
       const withoutAsset = removeAssetOnce(player, asset.id)
       return { ...withoutAsset, cash: withoutAsset.cash + proceeds }
     })
-    nextState = appendLog(nextState, actor.id, logText('按市价卖出 {asset} {quantity} 份，每份 ${price}，收回 ${proceeds}，{result}。', {
+    nextState = appendLog(nextState, actor.id, logText('按市价卖出 {asset} {quantity} 份，每份 ${price}，收回 ${proceeds}{bonus}，{result}。', {
       asset: nm(asset.name),
       quantity,
       price,
       proceeds,
+      bonus: tradingBonus > 0 ? logText('（量化交易 +${amount}）', { amount: tradingBonus }) : '',
       result: logText(profit >= 0 ? '盈利 ${amount}' : '亏损 ${amount}', { amount: Math.abs(profit) }),
     }), profit >= 0 ? 'positive' : 'negative')
     const updatedActor = nextState.players.find((player) => player.id === actor.id)!

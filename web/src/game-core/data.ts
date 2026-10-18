@@ -388,8 +388,37 @@ const LEGACY_PROFESSION_SAVINGS: Record<string, number> = {
 export const legacyProfessionSavings = (profession: string, fallback: number) =>
   LEGACY_PROFESSION_SAVINGS[profession] ?? fallback
 
+// Professions earned through achievements. They are only ever chosen by the human player and are
+// kept out of PROFESSIONS so the seeded profession shuffle, and old replays, stay unchanged.
+export const UNLOCKABLE_PROFESSIONS = [
+  {
+    title: '程序员',
+    salary: 5600,
+    expenses: 4400,
+    savings: 3800,
+    perChildExpense: 280,
+    fixedExpenses: { taxes: 1250, mortgage: 800, educationLoan: 300, carLoan: 160, creditCard: 120, living: 1770 },
+    summary: '收入较高，擅长看行情，但生活成本也不低。',
+    requiredAchievements: 3,
+  },
+  {
+    title: '厨师',
+    salary: 2900,
+    expenses: 2150,
+    savings: 1900,
+    perChildExpense: 160,
+    fixedExpenses: { taxes: 500, mortgage: 420, educationLoan: 30, carLoan: 90, creditCard: 70, living: 1040 },
+    summary: '收入不高，但精打细算，额外支出更少。',
+    requiredAchievements: 6,
+  },
+] as const
+
+export type Profession = (typeof PROFESSIONS)[number] | (typeof UNLOCKABLE_PROFESSIONS)[number]
+
+export const ALL_PROFESSIONS: readonly Profession[] = [...PROFESSIONS, ...UNLOCKABLE_PROFESSIONS]
+
 export const professionByTitle = (title: string) =>
-  PROFESSIONS.find((profession) => profession.title === title)
+  ALL_PROFESSIONS.find((profession) => profession.title === title)
 
 export const DREAMS = [
   '开一家社区图书馆',

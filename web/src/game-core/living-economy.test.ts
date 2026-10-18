@@ -156,6 +156,22 @@ describe('living economy', () => {
     expect(executeCommand(legacy, { type: 'SELL_SECURITY', actorId: 'player-human', assetId: 'stock-nova#1' }).ok).toBe(false)
   })
 
+  it('gives the unlockable professions their skills', () => {
+    const developer = createLivingGame('程序员')
+    developer.securityPrices = { ...developer.securityPrices, NOVA: 15 }
+    developer.players[0].assets = [novaHolding()]
+    const cashBefore = developer.players[0].cash
+    const sold = run(developer, { type: 'SELL_SECURITY', actorId: 'player-human', assetId: 'stock-nova#1' })
+    expect(sold.players[0].cash).toBe(cashBefore + 1500 + 100)
+    expect(sold.logs.at(-1)?.message).toContain('量化交易 +$100')
+
+    const chef = landOnHoliday(createLivingGame('厨师'))
+    const teacher = landOnHoliday(createLivingGame('教师'))
+    // $1,200 holiday × 0.75 lifestyle factor (low expenses) × 0.75 chef discount, rounded to $50.
+    expect(chef.pendingDecision).toMatchObject({ type: 'doodad', cost: 700 })
+    expect(teacher.pendingDecision).toMatchObject({ type: 'doodad', cost: 1000 })
+  })
+
   it('can sell a security to cover a cash shortfall', () => {
     const state = createLivingGame()
     state.players[0].assets = [novaHolding()]
