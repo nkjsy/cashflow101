@@ -119,6 +119,11 @@ export const FAST_TRACK_BUSINESSES: FastTrackBusiness[] = [
     cashFlow: 24000,
     sector: 'technology',
   },
+  // Expansion (living economy only)
+  { id: 'fast-track-robotics', name: '仓储机器人公司', description: '为电商仓库提供自动分拣机器人租赁。', cost: 400000, cashFlow: 21000, sector: 'logistics' },
+  { id: 'fast-track-clinic-chain', name: '社区诊所连锁', description: '在新建社区开设标准化全科诊所。', cost: 300000, cashFlow: 17000, sector: 'healthcare' },
+  { id: 'fast-track-smart-farm', name: '智慧农业园区', description: '温室种植与城市生鲜直供。', cost: 250000, cashFlow: 15000, sector: 'community' },
+  { id: 'fast-track-bilingual-school', name: '双语学校', description: '从幼儿园到初中的一贯制学校。', cost: 520000, cashFlow: 25000, sector: 'education' },
 ]
 
 const LEGACY_FAST_TRACK_BUSINESS_CASH_FLOWS = [20000, 30000, 50000, 25000, 35000, 40000, 55000, 65000]
@@ -144,6 +149,10 @@ export const FAST_TRACK_RISKS: FastTrackRisk[] = [
   { id: 'risk-bad-partner', name: '合伙人违约', description: '收益日收入永久下降。', effect: 'income-percent', amount: 0.1 },
   { id: 'risk-maintenance', name: '重大维护', description: '基础设施需要紧急维护。', effect: 'cash-fixed', amount: 75000 },
   { id: 'risk-business-loss', name: '经营损失', description: '一次性承担业务损失。', effect: 'cash-fixed', amount: 100000 },
+  // Expansion (living economy only)
+  { id: 'risk-cyber-attack', name: '网络安全事故', description: '系统被攻击，支付修复与赔偿费用。', effect: 'cash-fixed', amount: 120000 },
+  { id: 'risk-product-recall', name: '产品召回', description: '召回问题批次，收益日收入小幅下降。', effect: 'income-percent', amount: 0.05 },
+  { id: 'risk-market-crash', name: '股市崩盘', description: '投资组合缩水，可动用现金减少。', effect: 'cash-percent', amount: 0.15 },
 ]
 
 export const SMALL_DEALS: Opportunity[] = [
@@ -193,6 +202,14 @@ export const SMALL_DEALS: Opportunity[] = [
   { id: 'cd-community', name: '社区银行存单', kind: 'cd', dealSize: 'small', symbol: 'CD12', quantity: 1, costPerUnit: 3000, description: '提供稳定利息收入的一年期存单。', downPayment: 3000, mortgage: 0, cashFlow: 90 },
   { id: 'asset-parking', name: '社区停车位', kind: 'real-estate', dealSize: 'small', description: '住宅区内长期出租的停车位。', downPayment: 3500, mortgage: 11500, cashFlow: 430 },
   { id: 'asset-coffee-cart', name: '移动咖啡车', kind: 'business', dealSize: 'small', description: '办公区内已有固定客群的咖啡车。', downPayment: 5000, mortgage: 10000, cashFlow: 620 },
+  // Expansion (living economy only)
+  { id: 'asset-duplex', name: '老城区双拼住宅', kind: 'real-estate', dealSize: 'small', description: '两套独立出租单元，租客稳定。', downPayment: 5000, mortgage: 45000, cashFlow: 640 },
+  { id: 'asset-ebike-fleet', name: '共享电单车车队', kind: 'business', dealSize: 'small', description: '大学城周边的一组共享电单车。', downPayment: 3000, mortgage: 6000, cashFlow: 420 },
+  { id: 'asset-farmland', name: '城郊农地', kind: 'real-estate', dealSize: 'small', description: '租金很低，但传闻附近要规划新城区。', downPayment: 4000, mortgage: 16000, cashFlow: 80 },
+  { id: 'asset-billboard', name: '社区广告牌', kind: 'business', dealSize: 'small', description: '主干道路口的一块长期广告位。', downPayment: 2000, mortgage: 4000, cashFlow: 260 },
+  { id: 'asset-fixer-upper', name: '待翻新公寓', kind: 'real-estate', dealSize: 'small', description: '价格便宜，但房况一般，租金偏低。', downPayment: 7000, mortgage: 53000, cashFlow: 300 },
+  { id: 'asset-tutoring', name: '课后辅导工作室', kind: 'business', dealSize: 'small', description: '学区附近的小班辅导，生源稳定。', downPayment: 4500, mortgage: 9500, cashFlow: 600 },
+  { id: 'cd-green-bond', name: '绿色债券', kind: 'cd', dealSize: 'small', symbol: 'GRN', quantity: 1, costPerUnit: 5000, description: '支持清洁能源项目的五年期债券。', downPayment: 5000, mortgage: 0, cashFlow: 140 },
 ]
 
 export const BIG_DEALS: Opportunity[] = [
@@ -204,9 +221,23 @@ export const BIG_DEALS: Opportunity[] = [
   { id: 'asset-storage', name: '自助仓储中心', kind: 'real-estate', dealSize: 'big', description: '拥有多种尺寸单元的自助仓储中心。', downPayment: 28000, mortgage: 172000, cashFlow: 3800 },
   { id: 'asset-solar', name: '商业屋顶光伏组合', kind: 'business', dealSize: 'big', description: '通过长期购电协议产生收入。', downPayment: 40000, mortgage: 160000, cashFlow: 5200 },
   { id: 'asset-franchise', name: '连锁餐饮加盟店', kind: 'business', dealSize: 'big', description: '成熟品牌的新区域门店。', downPayment: 35000, mortgage: 115000, cashFlow: 4500 },
+  // Expansion (living economy only)
+  { id: 'asset-mini-mall', name: '社区小型商场', kind: 'real-estate', dealSize: 'big', description: '超市与餐饮组合的社区商业中心。', downPayment: 45000, mortgage: 255000, cashFlow: 5600 },
+  { id: 'asset-boutique-inn', name: '精品民宿', kind: 'business', dealSize: 'big', description: '景区边的十间客房，旺季一房难求。', downPayment: 26000, mortgage: 104000, cashFlow: 2900 },
+  { id: 'asset-apartment-24', name: '24 户公寓楼', kind: 'real-estate', dealSize: 'big', description: '规模更大的公寓楼，管理成本也更高。', downPayment: 48000, mortgage: 432000, cashFlow: 6100 },
+  { id: 'asset-logistics-yard', name: '物流堆场', kind: 'real-estate', dealSize: 'big', description: '靠近高速出口的货车停放与中转场地。', downPayment: 20000, mortgage: 130000, cashFlow: 2700 },
+  { id: 'asset-gym', name: '连锁健身房', kind: 'business', dealSize: 'big', description: '会员制健身房，需要持续营销。', downPayment: 33000, mortgage: 97000, cashFlow: 3700 },
+  { id: 'asset-seaside-villa', name: '海景度假别墅', kind: 'real-estate', dealSize: 'big', description: '升值潜力大，但淡季空置，租金很低。', downPayment: 38000, mortgage: 362000, cashFlow: 1500 },
 ]
 
 export const OPPORTUNITIES: Opportunity[] = [...SMALL_DEALS, ...BIG_DEALS]
+
+// Securities whose price moves every round in the living economy. Base prices match the deal cards.
+export const SECURITY_MARKET = [
+  { symbol: 'NOVA', dealId: 'stock-nova', basePrice: 10, volatility: 0.28 },
+  { symbol: 'HARB', dealId: 'stock-harbor', basePrice: 20, volatility: 0.18 },
+  { symbol: 'CITY', dealId: 'fund-index', basePrice: 40, volatility: 0.07 },
+] as const
 
 export const DOODADS: DoodadCard[] = [
   { id: 'doodad-phone', name: '更换手机', description: '旧手机损坏，需要立即更换。', cost: 600 },
@@ -219,6 +250,17 @@ export const DOODADS: DoodadCard[] = [
   { id: 'doodad-dental', name: '牙科治疗', description: '保险未覆盖的治疗费用。', cost: 1400 },
   { id: 'doodad-furniture', name: '更换家具', description: '必要的家具更新。', cost: 800 },
   { id: 'doodad-course', name: '职业进修', description: '参加一次职业技能课程。', cost: 1100 },
+  // Expansion (living economy only)
+  { id: 'doodad-gym', name: '健身年卡', description: '新年决心，先办一张年卡。', cost: 600 },
+  { id: 'doodad-pet', name: '宠物看病', description: '家里的猫需要做一次手术。', cost: 850 },
+  { id: 'doodad-birthday', name: '生日派对', description: '为家人办一场生日聚会。', cost: 200, perChild: 250 },
+  { id: 'doodad-concert', name: '演唱会门票', description: '喜欢的乐队来开演唱会了。', cost: 500 },
+  { id: 'doodad-laptop', name: '更换笔记本电脑', description: '工作电脑彻底罢工。', cost: 1300 },
+  { id: 'doodad-ticket', name: '交通罚款', description: '一张超速罚单。', cost: 300 },
+  { id: 'doodad-roof', name: '屋顶漏水', description: '暴雨后必须马上修屋顶。', cost: 1600 },
+  { id: 'doodad-gifts', name: '节日礼物', description: '给家人和朋友准备节日礼物。', cost: 400, perChild: 100 },
+  { id: 'doodad-takeout', name: '外卖账单', description: '加班一个月，外卖花了不少。', cost: 350 },
+  { id: 'doodad-glasses', name: '配新眼镜', description: '视力下降，需要重新配镜。', cost: 450 },
 ]
 
 export const MARKETS: MarketCard[] = [
@@ -235,7 +277,27 @@ export const MARKETS: MarketCard[] = [
   { id: 'market-harbor-reverse', type: 'security-split', name: 'HARB 二合一', description: '持股数量减半，每股成本翻倍。', symbol: 'HARB', multiplier: 0.5 },
   { id: 'market-property-boom', type: 'asset-offer', name: '商业地产繁荣', description: '买方收购大型商业地产。', assetId: 'asset-office', salePrice: 320000 },
   { id: 'market-storage-boom', type: 'asset-offer', name: '仓储需求激增', description: '基金收购自助仓储中心。', assetId: 'asset-storage', salePrice: 250000 },
+  // Expansion (living economy only)
+  { id: 'market-land-rezoning', type: 'asset-offer', name: '土地规划调整', description: '新城区获批，开发商高价收购城郊农地。', assetId: 'asset-farmland', salePrice: 40000 },
+  { id: 'market-mall-fund', type: 'asset-offer', name: '商业地产基金入场', description: '基金收购社区小型商场。', assetId: 'asset-mini-mall', salePrice: 380000 },
+  { id: 'market-tourism-rebound', type: 'asset-offer', name: '旅游复苏', description: '酒店集团收购精品民宿。', assetId: 'asset-boutique-inn', salePrice: 210000 },
+  { id: 'market-mobility-merger', type: 'asset-offer', name: '共享出行整合', description: '出行平台收购共享电单车车队。', assetId: 'asset-ebike-fleet', salePrice: 24000 },
+  { id: 'market-education-group', type: 'asset-offer', name: '教育集团扩张', description: '教育集团收购课后辅导工作室。', assetId: 'asset-tutoring', salePrice: 36000 },
+  { id: 'market-big-apartment', type: 'asset-offer', name: '机构收购大型公寓', description: '养老基金收购 24 户公寓楼。', assetId: 'asset-apartment-24', salePrice: 620000 },
+  { id: 'market-business-slump', type: 'asset-offer', name: '经济放缓', description: '买家压价，只按投入权益的 0.8 倍收购小企业。', assetKind: 'business', equityMultiple: 0.8 },
+  { id: 'market-city-split', type: 'security-split', name: 'CITY 一拆二', description: '基金份额翻倍，每份成本减半。', symbol: 'CITY', multiplier: 2 },
 ]
+
+// Cards added with the living economy. Legacy games build their decks without them so their
+// shuffles, and therefore their replays, stay exactly as they were.
+export const EXPANSION_CARD_IDS: ReadonlySet<string> = new Set([
+  'asset-duplex', 'asset-ebike-fleet', 'asset-farmland', 'asset-billboard', 'asset-fixer-upper', 'asset-tutoring', 'cd-green-bond',
+  'asset-mini-mall', 'asset-boutique-inn', 'asset-apartment-24', 'asset-logistics-yard', 'asset-gym', 'asset-seaside-villa',
+  'doodad-gym', 'doodad-pet', 'doodad-birthday', 'doodad-concert', 'doodad-laptop', 'doodad-ticket', 'doodad-roof', 'doodad-gifts', 'doodad-takeout', 'doodad-glasses',
+  'market-land-rezoning', 'market-mall-fund', 'market-tourism-rebound', 'market-mobility-merger', 'market-education-group', 'market-big-apartment', 'market-business-slump', 'market-city-split',
+  'fast-track-robotics', 'fast-track-clinic-chain', 'fast-track-smart-farm', 'fast-track-bilingual-school',
+  'risk-cyber-attack', 'risk-product-recall', 'risk-market-crash',
+])
 
 export const PROFESSIONS = [
   {
@@ -326,8 +388,37 @@ const LEGACY_PROFESSION_SAVINGS: Record<string, number> = {
 export const legacyProfessionSavings = (profession: string, fallback: number) =>
   LEGACY_PROFESSION_SAVINGS[profession] ?? fallback
 
+// Professions earned through achievements. They are only ever chosen by the human player and are
+// kept out of PROFESSIONS so the seeded profession shuffle, and old replays, stay unchanged.
+export const UNLOCKABLE_PROFESSIONS = [
+  {
+    title: '程序员',
+    salary: 5600,
+    expenses: 4400,
+    savings: 3800,
+    perChildExpense: 280,
+    fixedExpenses: { taxes: 1250, mortgage: 800, educationLoan: 300, carLoan: 160, creditCard: 120, living: 1770 },
+    summary: '收入较高，擅长看行情，但生活成本也不低。',
+    requiredAchievements: 3,
+  },
+  {
+    title: '厨师',
+    salary: 2900,
+    expenses: 2150,
+    savings: 1900,
+    perChildExpense: 160,
+    fixedExpenses: { taxes: 500, mortgage: 420, educationLoan: 30, carLoan: 90, creditCard: 70, living: 1040 },
+    summary: '收入不高，但精打细算，额外支出更少。',
+    requiredAchievements: 6,
+  },
+] as const
+
+export type Profession = (typeof PROFESSIONS)[number] | (typeof UNLOCKABLE_PROFESSIONS)[number]
+
+export const ALL_PROFESSIONS: readonly Profession[] = [...PROFESSIONS, ...UNLOCKABLE_PROFESSIONS]
+
 export const professionByTitle = (title: string) =>
-  PROFESSIONS.find((profession) => profession.title === title)
+  ALL_PROFESSIONS.find((profession) => profession.title === title)
 
 export const DREAMS = [
   '开一家社区图书馆',

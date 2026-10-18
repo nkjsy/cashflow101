@@ -1,7 +1,7 @@
-import { FAST_TRACK_EXPANSION_GAIN, FAST_TRACK_EXPANSION_LIMIT, FAST_TRACK_GROWTH_UPGRADE_RATE, FAST_TRACK_REINVEST_LIMIT, FAST_TRACK_REINVEST_RATE, assetUpgradeCost, canTakeLoan, executeCommand, fastTrackExpansionCost, fastTrackReinvestCost, fastTrackSaleProceeds, fastTrackUpgradeCost, insuranceCost, logEntry, logText } from './engine'
+import { FAST_TRACK_EXPANSION_GAIN, FAST_TRACK_EXPANSION_LIMIT, FAST_TRACK_GROWTH_UPGRADE_RATE, FAST_TRACK_REINVEST_LIMIT, FAST_TRACK_REINVEST_RATE, assetUpgradeCost, canChargeCreditCard, canTakeLoan, executeCommand, fastTrackExpansionCost, fastTrackReinvestCost, fastTrackSaleProceeds, fastTrackUpgradeCost, insuranceCost, livingEconomy, logEntry, logText, securityForAsset, securityPrice } from './engine'
 import { BIG_DEALS } from './data'
 import { evaluateOpportunity, getAiPolicy, shouldBuyFastTrackBusiness } from './ai-policy'
-import type { GameCommand, GameState } from './types'
+import type { GameCommand, GameState, PlayerState } from './types'
 
 const minimumBigDealDownPayment = Math.min(...BIG_DEALS.map((deal) => deal.downPayment))
 
@@ -10,7 +10,45 @@ const apply = (state: GameState, command: GameCommand) => {
   return result.ok ? result.state : state
 }
 
+const liveSecurityHoldings = (state: GameState, player: PlayerState) =>
+  player.assets.flatMap((asset) => {
+    const price = asset.symbol && securityForAsset(asset) ? securityPrice(state, asset.symbol) : undefined
+    return price === undefined ? [] : [{ asset, price, proceeds: price * (asset.quantity ?? 1) }]
+  })
+
+// Takes profit once a security has run well past its cost; bolder personalities sell sooner.
+export const chooseSecuritySale = (state: GameState): GameCommand | null => {
+  if (!livingEconomy(state) || state.pendingDecision || state.turnStage !== 'awaiting-roll') return null
+  const player = state.players[state.currentPlayerIndex]
+  const target = player.aiPersonality === 'aggressive' ? 1.3 : player.aiPersonality === 'conservative' ? 1.6 : 1.45
+  const sale = liveSecurityHoldings(state, player)
+    .find(({ asset, price }) => price >= (asset.costPerUnit ?? asset.downPayment) * target)
+  return sale ? { type: 'SELL_SECURITY', actorId: player.id, assetId: sale.asset.id } : null
+}
+
+// In a cash crunch a security sells at market, which beats liquidating property at half its down payment.
+export const chooseInsolvencySecuritySale = (state: GameState, player: PlayerState): GameCommand | null => {
+  if (!livingEconomy(state)) return null
+  const holding = liveSecurityHoldings(state, player).sort((left, right) => right.proceeds - left.proceeds)[0]
+  return holding ? { type: 'SELL_SECURITY', actorId: player.id, assetId: holding.asset.id } : null
+}
+
+export const chooseDoodadPayment = (state: GameState, player: PlayerState, cost: number): GameCommand => ({
+  type: 'PAY_DOODAD',
+  actorId: player.id,
+  method: player.cash - cost >= getAiPolicy(state, player).reserve || !canChargeCreditCard(player, cost) ? 'cash' : 'credit',
+})
+
+export const chooseCreditCardRepayment = (state: GameState, player: PlayerState): GameCommand | null => {
+  const debt = player.creditCardDebt ?? 0
+  return player.phase === 'rat-race' && debt > 0 && player.cash - debt >= getAiPolicy(state, player).reserve
+    ? { type: 'REPAY_CREDIT_CARD', actorId: player.id }
+    : null
+}
+
 export const choosePreRollStrategyCommand = (state: GameState): GameCommand | null => {
+  const securitySale = chooseSecuritySale(state)
+  if (securitySale) return securitySale
   if (state.setup.strategyRulesVersion !== 'strategy-v1' || state.turnStage !== 'awaiting-roll') return null
   const player = state.players[state.currentPlayerIndex]
   if (player.phase === 'fast-track') {
@@ -78,8 +116,15 @@ const playBasicAiTurnInternal = (state: GameState): GameState => {
 
   let nextState = state
   if (state.turnStage === 'awaiting-roll') {
-    const strategyCommand = choosePreRollStrategyCommand(state)
-    if (strategyCommand) nextState = apply(nextState, strategyCommand)
+    // Security sales are free actions, so keep going until the strategy step (or nothing) is left.
+    for (let step = 0; step < 4; step += 1) {
+      const preRollCommand = choosePreRollStrategyCommand(nextState)
+      if (!preRollCommand) break
+      const applied = apply(nextState, preRollCommand)
+      if (applied === nextState) break
+      nextState = applied
+      if (preRollCommand.type !== 'SELL_SECURITY') break
+    }
     nextState = apply(nextState, {
       type: 'ROLL_DICE',
       actorId: player.id,
@@ -115,6 +160,8 @@ const playBasicAiTurnInternal = (state: GameState): GameState => {
       type: shouldBuy ? 'BUY_OPPORTUNITY' : 'PASS_OPPORTUNITY',
       actorId: player.id,
     })
+  } else if (decision?.type === 'doodad') {
+    nextState = apply(nextState, chooseDoodadPayment(nextState, player, decision.cost))
   } else if (decision?.type === 'charity') {
     const policy = getAiPolicy(nextState, player)
     nextState = apply(nextState, {
@@ -144,9 +191,9 @@ const playBasicAiTurnInternal = (state: GameState): GameState => {
       nextState,
       canTakeLoan(current, amount)
         ? { type: 'TAKE_LOAN', actorId: player.id, amount }
-        : liquidationAsset
+        : chooseInsolvencySecuritySale(nextState, current) ?? (liquidationAsset
           ? { type: 'LIQUIDATE_ASSET', actorId: player.id, assetId: liquidationAsset.id }
-          : { type: 'DECLARE_BANKRUPTCY', actorId: player.id },
+          : { type: 'DECLARE_BANKRUPTCY', actorId: player.id }),
     )
   } else if (decision?.type === 'fast-track-business') {
     nextState = apply(nextState, {
@@ -173,6 +220,8 @@ const playBasicAiTurnInternal = (state: GameState): GameState => {
   if (updatedPlayer.phase === 'rat-race' && repayable >= 100) {
     return apply(nextState, { type: 'REPAY_LOAN', actorId: updatedPlayer.id, amount: repayable })
   }
+  const creditCardRepayment = chooseCreditCardRepayment(nextState, updatedPlayer)
+  if (creditCardRepayment) return apply(nextState, creditCardRepayment)
   return apply(nextState, { type: 'END_TURN', actorId: player.id })
 }
 
@@ -189,6 +238,7 @@ const explainAiDecision = (state: GameState) => {
   if (decision.type === 'deal-choice') return logText('{style}，先保留现金储备，再判断是否负担得起大买卖最低首付。', { style })
   if (decision.type === 'opportunity') return logText('{style}，综合回报率、现金储备和可持续借款；基金与存单不使用贷款。', { style })
   if (decision.type === 'market') return logText('{style}，报价达到成本时卖出，现金紧张时也会折价换取流动性。', { style })
+  if (decision.type === 'doodad') return logText('{style}，现金充足时直接付款，否则刷信用卡保留现金储备。', { style })
   if (decision.type === 'charity') return logText('{style}，捐赠后仍达到目标现金储备才换取三回合双骰。', { style })
   if (decision.type === 'insolvency') return logText('先尝试可持续借款，再清算首付最高的资产，最后才宣布破产。')
   if (decision.type === 'fast-track-business') return logText('{style}；专家会优先保留实现所选梦想所需的现金。', { style })

@@ -1,7 +1,7 @@
 import { canTakeLoan, executeCommand, monthlyCashFlow, totalExpenses } from '../game-core/engine'
 import { BIG_DEALS } from '../game-core/data'
 import { evaluateOpportunity, getAiPolicy, shouldBuyFastTrackBusiness } from '../game-core/ai-policy'
-import { choosePreRollStrategyCommand } from '../game-core/ai'
+import { chooseCreditCardRepayment, chooseDoodadPayment, chooseInsolvencySecuritySale, choosePreRollStrategyCommand } from '../game-core/ai'
 import type { AssetKind, DealSize, GameCommand, GameState, LongTermGoalId, PlayerState } from '../game-core/types'
 
 type PurchaseCounts<Key extends string> = Record<Key, number>
@@ -127,6 +127,7 @@ const commandForDecision = (state: GameState): GameCommand | null => {
       actorId: player.id,
     }
   }
+  if (decision.type === 'doodad') return chooseDoodadPayment(state, player, decision.cost)
   if (decision.type === 'charity') {
     return {
       type: 'CHOOSE_CHARITY',
@@ -151,6 +152,8 @@ const commandForDecision = (state: GameState): GameCommand | null => {
     const amount = Math.ceil(Math.abs(player.cash) / 1000) * 1000
     const liquidationAsset = [...player.assets].sort((left, right) => right.downPayment - left.downPayment)[0]
     if (canTakeLoan(player, amount)) return { type: 'TAKE_LOAN', actorId: player.id, amount }
+    const securitySale = chooseInsolvencySecuritySale(state, player)
+    if (securitySale) return securitySale
     return liquidationAsset
       ? { type: 'LIQUIDATE_ASSET', actorId: player.id, assetId: liquidationAsset.id }
       : { type: 'DECLARE_BANKRUPTCY', actorId: player.id }
@@ -192,7 +195,7 @@ export const chooseAutoplayCommand = (state: GameState): GameCommand => {
   if (player.phase === 'rat-race' && repayable >= 100) {
     return { type: 'REPAY_LOAN', actorId: player.id, amount: repayable }
   }
-  return { type: 'END_TURN', actorId: player.id }
+  return chooseCreditCardRepayment(state, player) ?? { type: 'END_TURN', actorId: player.id }
 }
 
 const numericPlayerValues = (player: PlayerState) => [
@@ -225,6 +228,8 @@ export const assertGameInvariants = (state: GameState) => {
     }
     if (
       player.bankLoan < 0 ||
+      (player.creditCardDebt ?? 0) < 0 ||
+      (player.creditCardPayment ?? 0) < 0 ||
       player.babies < 0 ||
       player.babies > 3 ||
       player.passiveIncome < 0 ||

@@ -3,6 +3,7 @@ import {
   BIG_DEALS,
   DOODADS,
   DREAMS,
+  EXPANSION_CARD_IDS,
   FAST_TRACK_BOARD,
   FAST_TRACK_DREAM_BY_POSITION,
   FAST_TRACK_DREAM_COSTS,
@@ -14,6 +15,9 @@ import {
   legacyProfessionSavings,
   MARKETS,
   PROFESSIONS,
+  SECURITY_MARKET,
+  type Profession,
+  professionByTitle,
   SMALL_DEALS,
 } from './data'
 import type {
@@ -21,6 +25,8 @@ import type {
   AiDifficulty,
   AiPersonality,
   CommandResult,
+  DoodadCard,
+  EconomyRulesVersion,
   FastTrackBusiness,
   FastTrackBalanceVersion,
   GameCommand,
@@ -140,6 +146,10 @@ export const insuranceCoverageRate = (player: PlayerState, insurance: InsuranceK
     ? 0.75
     : 0.5
 
+// Software developer skill: securities sold at market fetch 5% more, up to $1,000 per sale.
+export const developerTradingBonus = (player: PlayerState, proceeds: number) =>
+  player.profession === '程序员' ? Math.min(1000, Math.round(proceeds * 0.05 / 100) * 100) : 0
+
 export const lawyerNegotiationBonus = (player: PlayerState, salePrice: number) =>
   player.profession === '律师' ? Math.min(1000, Math.round(salePrice * 0.05 / 100) * 100) : 0
 
@@ -192,13 +202,34 @@ export const childMonthlyExpenses = (player: PlayerState) =>
   player.profession === '护士' ? 0 : player.babies * player.perChildExpense
 
 export const totalExpenses = (player: PlayerState) =>
-  player.baseExpenses + childMonthlyExpenses(player) + player.bankLoan * 0.1
+  player.baseExpenses + childMonthlyExpenses(player) + player.bankLoan * 0.1 + (player.creditCardPayment ?? 0)
 
 export const monthlyCashFlow = (player: PlayerState) =>
   player.salary + player.passiveIncome - totalExpenses(player)
 
 export const canTakeLoan = (player: PlayerState, amount: number) =>
   amount > 0 && amount % 1000 === 0 && monthlyCashFlow(player) - amount * 0.1 >= 0
+
+export const CREDIT_CARD_RATE = 0.05
+
+export const creditCardPaymentFor = (cost: number) => Math.max(10, Math.round(cost * CREDIT_CARD_RATE / 10) * 10)
+
+// Like bank loans, a charge is only allowed while monthly cash flow stays non-negative.
+export const canChargeCreditCard = (player: PlayerState, cost: number) =>
+  cost > 0 && player.phase === 'rat-race' && monthlyCashFlow(player) - creditCardPaymentFor(cost) >= 0
+
+export const livingEconomy = (state: GameState) => state.setup.economyRulesVersion === 'living-v1'
+
+const SECURITY_HISTORY_LENGTH = 12
+
+const CYCLE_SECURITY_DRIFT = { 'steady-growth': 0.03, 'property-boom': 0.01, 'high-interest': -0.04 } as const
+
+export const securityForAsset = (asset: Pick<Asset, 'symbol' | 'kind'>) =>
+  asset.kind === 'stock' || asset.kind === 'fund'
+    ? SECURITY_MARKET.find((security) => security.symbol === asset.symbol)
+    : undefined
+
+export const securityPrice = (state: GameState, symbol: string) => state.securityPrices?.[symbol]
 
 export const freedomProgress = (player: PlayerState) => {
   const expenses = totalExpenses(player)
@@ -208,7 +239,7 @@ export const freedomProgress = (player: PlayerState) => {
 const createPlayer = (
   index: number,
   isHuman: boolean,
-  profession: (typeof PROFESSIONS)[number],
+  profession: Profession,
   dream: string,
   longTermGoal: LongTermGoalId,
   aiPersonality?: AiPersonality,
@@ -276,22 +307,26 @@ export const createGame = (
   strategyRulesVersion: StrategyRulesVersion = 'strategy-v1',
   humanLongTermGoal?: LongTermGoalId,
   pace: GamePace = 'standard',
+  economyRulesVersion: EconomyRulesVersion = 'legacy',
 ): GameState => {
+  const deckIds = (cards: ReadonlyArray<{ id: string }>) => cards
+    .map((card) => card.id)
+    .filter((id) => economyRulesVersion === 'living-v1' || !EXPANSION_CARD_IDS.has(id))
   const professions = shuffle(PROFESSIONS, seed)
   const dreams = shuffle(DREAMS, professions.seed)
-  const smallDeals = shuffle(SMALL_DEALS.map((deal) => deal.id), dreams.seed)
-  const bigDeals = shuffle(BIG_DEALS.map((deal) => deal.id), smallDeals.seed)
-  const doodads = shuffle(DOODADS.map((card) => card.id), bigDeals.seed)
-  const markets = shuffle(MARKETS.map((card) => card.id), doodads.seed)
-  const fastTrackBusinesses = shuffle(FAST_TRACK_BUSINESSES.map((business) => business.id), seed ^ 0x46544231)
-  const fastTrackRisks = shuffle(FAST_TRACK_RISKS.map((risk) => risk.id), seed ^ 0x46545231)
+  const smallDeals = shuffle(deckIds(SMALL_DEALS), dreams.seed)
+  const bigDeals = shuffle(deckIds(BIG_DEALS), smallDeals.seed)
+  const doodads = shuffle(deckIds(DOODADS), bigDeals.seed)
+  const markets = shuffle(deckIds(MARKETS), doodads.seed)
+  const fastTrackBusinesses = shuffle(deckIds(FAST_TRACK_BUSINESSES), seed ^ 0x46544231)
+  const fastTrackRisks = shuffle(deckIds(FAST_TRACK_RISKS), seed ^ 0x46545231)
   const personalities = shuffle<AiPersonality>(['conservative', 'balanced', 'aggressive'], seed ^ 0x41495031)
   const longTermGoals: LongTermGoalId[] = ['diversified', 'master-asset', 'debt-free']
   const longTermGoalOffset = ((seed ^ 0x474f414c) >>> 0) % longTermGoals.length
   const selectedHumanLongTermGoal = humanLongTermGoal ?? longTermGoals[longTermGoalOffset]
   const startingPlayer = nextRandom(markets.seed)
   const playerCount = aiCount + 1
-  const selectedProfession = PROFESSIONS.find((profession) => profession.title === humanProfession)
+  const selectedProfession = humanProfession ? professionByTitle(humanProfession) : undefined
   const orderedProfessions = selectedProfession
     ? [selectedProfession, ...professions.items.filter((profession) => profession.title !== selectedProfession.title)]
     : professions.items
@@ -315,6 +350,7 @@ export const createGame = (
       ratRaceBalanceVersion,
       strategyRulesVersion,
       ...(pace === 'quick' ? { pace } : {}),
+      ...(economyRulesVersion === 'living-v1' ? { economyRulesVersion } : {}),
     },
     commandHistory: [],
     revision: 0,
@@ -355,6 +391,12 @@ export const createGame = (
     ],
     winnerId: null,
     economicCycleIndex: 0,
+    ...(economyRulesVersion === 'living-v1'
+      ? {
+          securityPrices: Object.fromEntries(SECURITY_MARKET.map((security) => [security.symbol, security.basePrice])),
+          securityHistory: Object.fromEntries(SECURITY_MARKET.map((security) => [security.symbol, [security.basePrice]])),
+        }
+      : {}),
   }
 }
 
@@ -434,6 +476,31 @@ const settlePaydays = (state: GameState, playerId: string, from: number, steps: 
   return nextState
 }
 
+const setSecurityPrice = (state: GameState, symbol: string, price: number, rescaleHistory = 1): GameState => {
+  const history = (state.securityHistory?.[symbol] ?? []).map((value) => Math.max(1, Math.round(value * rescaleHistory)))
+  return {
+    ...state,
+    securityPrices: { ...state.securityPrices, [symbol]: price },
+    securityHistory: { ...state.securityHistory, [symbol]: [...history, price].slice(-SECURITY_HISTORY_LENGTH) },
+  }
+}
+
+// Each round every security drifts with the economic cycle, swings by its volatility and is
+// pulled back toward its base price. Randomness is derived from the game seed and round, so
+// replays reproduce the same prices without consuming the dice sequence.
+const advanceSecurityPrices = (state: GameState): GameState => {
+  const drift = CYCLE_SECURITY_DRIFT[currentEconomicCycle(state).id]
+  return SECURITY_MARKET.reduce((nextState, security, index) => {
+    const price = nextState.securityPrices?.[security.symbol] ?? security.basePrice
+    const roundSeed = (state.setup.seed ^ Math.imul(state.turn, 0x9e3779b1) ^ Math.imul(index + 1, 0x85ebca6b)) >>> 0
+    const swing = nextRandom(nextRandom(roundSeed).seed).value * 2 - 1
+    const reversion = 0.12 * (security.basePrice - price) / security.basePrice
+    const next = Math.round(price * (1 + drift + security.volatility * swing + reversion))
+    const bounded = Math.min(security.basePrice * 4, Math.max(Math.max(1, Math.round(security.basePrice * 0.2)), next))
+    return setSecurityPrice(nextState, security.symbol, bounded)
+  }, state)
+}
+
 const baseMarketPrice = (
   card: Extract<MarketCard, { type: 'asset-offer' }>,
   asset: PlayerState['assets'][number],
@@ -500,6 +567,10 @@ const resolveMarket = (state: GameState, playerId: string): GameState => {
   let nextState: GameState = { ...state, marketIndex: (state.marketIndex ?? 0) + 1 }
 
   if (card.type === 'security-split') {
+    const currentPrice = securityPrice(nextState, card.symbol)
+    if (livingEconomy(nextState) && currentPrice !== undefined) {
+      nextState = setSecurityPrice(nextState, card.symbol, Math.max(1, Math.round(currentPrice / card.multiplier)), 1 / card.multiplier)
+    }
     let affected = 0
     nextState = {
       ...nextState,
@@ -522,12 +593,32 @@ const resolveMarket = (state: GameState, playerId: string): GameState => {
     }))
   }
 
+  const shockedSecurity = card.pricePerUnit !== undefined
+    ? SECURITY_MARKET.find((security) => security.dealId === card.assetId)
+    : undefined
+  if (livingEconomy(nextState) && shockedSecurity && card.pricePerUnit !== undefined) {
+    nextState = setSecurityPrice(nextState, shockedSecurity.symbol, card.pricePerUnit)
+  }
   const triggerIndex = nextState.players.findIndex((candidate) => candidate.id === playerId)
   const eligiblePlayers = Array.from({ length: nextState.players.length }, (_, offset) =>
     nextState.players[(triggerIndex + offset) % nextState.players.length],
   ).filter((candidate) => !candidate.bankrupt && candidate.assets.some((asset) => matchesMarketCard(card, asset)))
   if (eligiblePlayers.length === 0) return appendLog(nextState, playerId, logText('{card}：当前无人持有符合报价的资产。', { card: nm(card.name) }))
   return nextMarketDecision(nextState, card, eligiblePlayers.map((player) => player.id))
+}
+
+const doodadCharge = (state: GameState, player: PlayerState, card: DoodadCard) => {
+  const lifestyleFactor = state.setup.ratRaceBalanceVersion === 'global-v2'
+    ? Math.min(1.5, Math.max(0.75, player.baseExpenses / 3000))
+    : 1
+  // Chef skill: lifestyle Splurges cost 25% less; per-child costs are unchanged.
+  const chefRate = player.profession === '厨师' ? 0.75 : 1
+  const lifestyleCost = Math.round(card.cost * lifestyleFactor * chefRate / 50) * 50
+  const originalCost = lifestyleCost + (card.perChild ?? 0) * player.babies
+  const careSavings = player.profession === '护士' && card.id === 'doodad-dental'
+    ? Math.round(originalCost * 0.5 / 50) * 50
+    : 0
+  return { cost: originalCost - careSavings, careSavings }
 }
 
 const resolveLanding = (state: GameState, playerId: string, space: SpaceType): GameState => {
@@ -554,15 +645,19 @@ const resolveLanding = (state: GameState, playerId: string, space: SpaceType): G
     const deck = state.doodadDeck?.length ? state.doodadDeck : DOODADS.map((card) => card.id)
     const cardId = deck[(state.doodadIndex ?? 0) % deck.length]
     const card = DOODADS.find((candidate) => candidate.id === cardId) ?? DOODADS[0]
-    const lifestyleFactor = state.setup.ratRaceBalanceVersion === 'global-v2'
-      ? Math.min(1.5, Math.max(0.75, player.baseExpenses / 3000))
-      : 1
-    const lifestyleCost = Math.round(card.cost * lifestyleFactor / 50) * 50
-    const originalCost = lifestyleCost + (card.perChild ?? 0) * player.babies
-    const careSavings = player.profession === '护士' && card.id === 'doodad-dental'
-      ? Math.round(originalCost * 0.5 / 50) * 50
-      : 0
-    const cost = originalCost - careSavings
+    const { cost, careSavings } = doodadCharge(state, player, card)
+    if (livingEconomy(state) && cost > 0) {
+      return appendLog(
+        { ...state, doodadIndex: (state.doodadIndex ?? 0) + 1, pendingDecision: { type: 'doodad', playerId, cardId: card.id, cost, careSavings } },
+        playerId,
+        logText('{card}：{description} 需支付 ${cost}{care}，可以现金支付或刷信用卡。', {
+          card: nm(card.name),
+          description: nm(card.description),
+          cost,
+          care: careSavings > 0 ? logText('，生活照护节省 ${savings}', { savings: careSavings }) : '',
+        }),
+      )
+    }
     const nextState = updatePlayer(state, playerId, (current) => ({
       ...current,
       cash: current.cash - cost,
@@ -832,7 +927,8 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     } else {
       nextState = settlePaydays(nextState, currentPlayer.id, from, steps)
       nextState = resolveLanding(nextState, currentPlayer.id, BOARD[to])
-      nextState = requireSolvency(nextState, currentPlayer.id, '强制支出或发薪日结算')
+      // A pending splurge settles solvency once it is paid.
+      if (nextState.pendingDecision?.type !== 'doodad') nextState = requireSolvency(nextState, currentPlayer.id, '强制支出或发薪日结算')
     }
     nextState = {
       ...nextState,
@@ -853,7 +949,11 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
       : (state.bigDealDeck?.length ? state.bigDealDeck : cards.map((card) => card.id))
     const index = isSmall ? (state.smallDealIndex ?? 0) : (state.bigDealIndex ?? 0)
     const cardId = deck[index % deck.length]
-    const opportunity = pacedOpportunity(cards.find((card) => card.id === cardId) ?? cards[0], state.setup.pace)
+    const drawn = pacedOpportunity(cards.find((card) => card.id === cardId) ?? cards[0], state.setup.pace)
+    const livePrice = livingEconomy(state) && securityForAsset(drawn) && drawn.symbol ? securityPrice(state, drawn.symbol) : undefined
+    const opportunity = livePrice !== undefined
+      ? { ...drawn, costPerUnit: livePrice, downPayment: livePrice * (drawn.quantity ?? 1) }
+      : drawn
     const nextState: GameState = {
       ...state,
       pendingDecision: { type: 'opportunity', playerId: actor.id, opportunity },
@@ -994,6 +1094,76 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
     }))
     nextState = appendLog(nextState, actor.id, logText('偿还银行贷款 ${amount}。', { amount: command.amount }), 'positive')
     nextState = checkFastTrack(nextState, actor.id)
+    return { ok: true, state: finish(nextState) }
+  }
+
+  if (command.type === 'PAY_DOODAD') {
+    const decision = state.pendingDecision
+    if (!decision || decision.type !== 'doodad' || decision.playerId !== actor.id) {
+      return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    }
+    const credit = command.method === 'credit'
+    if (credit && !canChargeCreditCard(actor, decision.cost)) return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    const payment = creditCardPaymentFor(decision.cost)
+    let nextState = updatePlayer({ ...state, pendingDecision: null }, actor.id, (player) => ({
+      ...player,
+      cash: credit ? player.cash : player.cash - decision.cost,
+      creditCardDebt: (player.creditCardDebt ?? 0) + (credit ? decision.cost : 0),
+      creditCardPayment: (player.creditCardPayment ?? 0) + (credit ? payment : 0),
+      nurseDoodadTriggers: (player.nurseDoodadTriggers ?? 0) + (decision.careSavings > 0 ? 1 : 0),
+      nurseDoodadSavings: (player.nurseDoodadSavings ?? 0) + decision.careSavings,
+    }))
+    nextState = appendLog(
+      nextState,
+      actor.id,
+      credit
+        ? logText('刷信用卡支付 ${cost}，每月还款增加 ${payment}。', { cost: decision.cost, payment })
+        : logText('现金支付 ${cost}。', { cost: decision.cost }),
+      'negative',
+    )
+    nextState = requireSolvency(nextState, actor.id, '强制支出或发薪日结算')
+    return { ok: true, state: finish({ ...nextState, turnStage: nextState.pendingDecision ? 'awaiting-decision' : 'awaiting-end' }) }
+  }
+
+  if (command.type === 'REPAY_CREDIT_CARD') {
+    const debt = actor.creditCardDebt ?? 0
+    if (actor.id !== currentPlayer.id || actor.phase !== 'rat-race' || state.pendingDecision || state.turnStage === 'awaiting-decision' || debt <= 0) {
+      return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    }
+    if (actor.cash < debt) return { ok: false, state, error: 'INSUFFICIENT_CASH' }
+    const payment = actor.creditCardPayment ?? 0
+    let nextState = updatePlayer(state, actor.id, (player) => ({ ...player, cash: player.cash - debt, creditCardDebt: 0, creditCardPayment: 0 }))
+    nextState = appendLog(nextState, actor.id, logText('还清信用卡 ${amount}，每月支出减少 ${payment}。', { amount: debt, payment }), 'positive')
+    nextState = checkFastTrack(nextState, actor.id)
+    return { ok: true, state: finish(nextState) }
+  }
+
+  if (command.type === 'SELL_SECURITY') {
+    const insolvent = state.pendingDecision?.type === 'insolvency' && state.pendingDecision.playerId === actor.id
+    if (!livingEconomy(state) || actor.id !== currentPlayer.id || (state.pendingDecision && !insolvent) || (!insolvent && state.turnStage === 'awaiting-decision')) {
+      return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    }
+    const asset = actor.assets.find((candidate) => candidate.id === command.assetId)
+    const price = asset?.symbol && securityForAsset(asset) ? securityPrice(state, asset.symbol) : undefined
+    if (!asset || price === undefined) return { ok: false, state, error: 'COMMAND_NOT_ALLOWED' }
+    const quantity = asset.quantity ?? 1
+    const tradingBonus = developerTradingBonus(actor, price * quantity)
+    const proceeds = price * quantity + tradingBonus
+    const profit = proceeds - (asset.costPerUnit ?? asset.downPayment) * quantity
+    let nextState = updatePlayer(state, actor.id, (player) => {
+      const withoutAsset = removeAssetOnce(player, asset.id)
+      return { ...withoutAsset, cash: withoutAsset.cash + proceeds }
+    })
+    nextState = appendLog(nextState, actor.id, logText('按市价卖出 {asset} {quantity} 份，每份 ${price}，收回 ${proceeds}{bonus}，{result}。', {
+      asset: nm(asset.name),
+      quantity,
+      price,
+      proceeds,
+      bonus: tradingBonus > 0 ? logText('（量化交易 +${amount}）', { amount: tradingBonus }) : '',
+      result: logText(profit >= 0 ? '盈利 ${amount}' : '亏损 ${amount}', { amount: Math.abs(profit) }),
+    }), profit >= 0 ? 'positive' : 'negative')
+    const updatedActor = nextState.players.find((player) => player.id === actor.id)!
+    if (insolvent && updatedActor.cash >= 0) nextState = { ...nextState, pendingDecision: null, turnStage: 'awaiting-end' }
     return { ok: true, state: finish(nextState) }
   }
 
@@ -1387,12 +1557,14 @@ const executeCommandInternal = (state: GameState, command: GameCommand): Command
       }
       foundNextPlayer = !candidate.bankrupt
     } while (!foundNextPlayer)
+    const newRound = nextIndex === 0
+    if (newRound && livingEconomy(nextState)) nextState = advanceSecurityPrices({ ...nextState, turn: state.turn + 1 })
     return {
       ok: true,
       state: finish({
         ...nextState,
         currentPlayerIndex: nextIndex,
-        turn: nextIndex === 0 ? state.turn + 1 : state.turn,
+        turn: newRound ? state.turn + 1 : state.turn,
         turnStage: 'awaiting-roll',
         players: nextState.players.map((player, index) => index === nextIndex
           ? { ...player, strategyActionUsed: false, fastTrackStrategyUsed: false }
@@ -1416,7 +1588,10 @@ export const executeCommand = (state: GameState, command: GameCommand): CommandR
   }
 }
 
-export const replayGame = (game: GameState): GameState => {
+export const replayGame = (
+  game: GameState,
+  onStep?: (before: GameState, command: GameCommand, after: GameState) => void,
+): GameState => {
   const setup = game.setup
   let replayed = createGame(
     setup.aiCount as 1 | 2 | 3,
@@ -1431,11 +1606,14 @@ export const replayGame = (game: GameState): GameState => {
     setup.strategyRulesVersion ?? 'legacy',
     setup.longTermGoal,
     setup.pace,
+    setup.economyRulesVersion ?? 'legacy',
   )
   for (const command of game.commandHistory ?? []) {
     const result = executeCommandInternal(replayed, command)
     if (!result.ok) throw new Error(`Replay failed at ${command.type}: ${result.error}`)
-    replayed = { ...result.state, commandHistory: [...replayed.commandHistory, command] }
+    const next = { ...result.state, commandHistory: [...replayed.commandHistory, command] }
+    onStep?.(replayed, command, next)
+    replayed = next
   }
   return replayed
 }

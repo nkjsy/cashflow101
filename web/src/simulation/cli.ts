@@ -18,15 +18,16 @@ const requestedAiCount = readNumber('--ai', 3)
 if (![1, 2, 3].includes(requestedAiCount)) throw new Error('--ai must be 1, 2, or 3')
 const aiCount = requestedAiCount as 1 | 2 | 3
 const pace = process.argv.includes('--pace') && process.argv[process.argv.indexOf('--pace') + 1] === 'quick' ? 'quick' : 'standard'
+const economy = process.argv.includes('--economy') && process.argv[process.argv.indexOf('--economy') + 1] === 'legacy' ? 'legacy' : 'living-v1'
 
 const startedAt = performance.now()
 const report = aggregateSimulations(
   { games, maxRounds, baseSeed, aiCount },
-  (seed) => createGame(aiCount, seed, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pace),
+  (seed) => createGame(aiCount, seed, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, pace, economy),
 )
 const elapsed = performance.now() - startedAt
 
-console.log(`\n现金流批量模拟：${games.toLocaleString('zh-CN')} 局，${aiCount + 1} 名玩家`)
+console.log(`\n现金流批量模拟：${games.toLocaleString('zh-CN')} 局，${aiCount + 1} 名玩家，经济规则 ${economy}`)
 console.log(`完成率：${(report.completionRate * 100).toFixed(1)}% (${report.completedGames}/${games})`)
 console.log(`完成局轮数：中位数 ${report.medianRounds ?? '-'}，P90 ${report.p90Rounds ?? '-'}`)
 console.log(`首次进入自由快道：中位数 ${report.medianFirstFastTrackRound ?? '-'}，P90 ${report.p90FirstFastTrackRound ?? '-'}`)

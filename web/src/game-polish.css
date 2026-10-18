@@ -1,0 +1,1163 @@
+/* Visual polish layer: typed board spaces, piece motion, value feedback and layout fixes. */
+:root {
+  --gold: #c9971f;
+  --gold-deep: #9a6c13;
+  --gold-soft: #fff3d6;
+  --space-accent: #9aa59f;
+  --space-tint: var(--paper);
+}
+
+/* Board spaces: each type gets its own accent, tint and icon. */
+.board-space {
+  position: relative;
+  overflow: visible;
+  color: var(--space-accent);
+  background: var(--space-tint);
+  border-color: color-mix(in srgb, var(--space-accent) 28%, var(--line));
+  border-top: 3px solid var(--space-accent);
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+
+.board-space > span:first-child {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-space .space-icon {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  width: clamp(14px, 32%, 30px);
+  height: auto;
+  aspect-ratio: 1;
+  opacity: .78;
+  stroke-width: 1.75;
+  pointer-events: none;
+}
+
+.board-space .pieces {
+  position: relative;
+  z-index: 2;
+}
+
+.board-space.opportunity { --space-accent: #1d8060; --space-tint: #f3f9f5; }
+.board-space.payday { --space-accent: var(--gold-deep); --space-tint: var(--gold-soft); }
+.board-space.market { --space-accent: #2f6f8a; --space-tint: #e8f1f5; }
+.board-space.doodad { --space-accent: #b74d3d; --space-tint: #fbefec; }
+.board-space.downsized { --space-accent: #8f3426; --space-tint: #f5dcd6; }
+.board-space.charity { --space-accent: #a34b7c; --space-tint: #f8ebf3; }
+.board-space.baby { --space-accent: #c06a1f; --space-tint: #fdf0e3; }
+
+.board-space.payday,
+.board-space.downsized,
+.board-space.doodad,
+.board-space.charity {
+  color: var(--space-accent);
+  background: var(--space-tint);
+}
+
+/* The Freedom Lane is a night-time board with gold accents. */
+.track-panel.fast-panel {
+  background: linear-gradient(160deg, #143a2f, #0f2b23);
+  border-color: #2f6b55;
+}
+
+.track-panel.fast-panel > header strong {
+  color: #f5cf73;
+}
+
+.track-panel.fast-panel > header span {
+  color: #b9cfc5;
+}
+
+.fast-track-board .board-space {
+  border-color: rgb(255 255 255 / 10%);
+}
+
+.fast-track-board .board-space.cashflow-day { --space-accent: #f5cf73; --space-tint: #1f4a3c; color: #f5cf73; background: var(--space-tint); border-top-color: var(--space-accent); }
+.fast-track-board .board-space.business { --space-accent: #7fc4e0; --space-tint: #1b4250; color: #a9d9ec; background: var(--space-tint); border-top-color: var(--space-accent); }
+.fast-track-board .board-space.dream { --space-accent: #d9b3f0; --space-tint: #2e2f4d; color: #e4ccf5; background: var(--space-tint); border-top-color: var(--space-accent); }
+.fast-track-board .board-space.risk { --space-accent: #f08f7c; --space-tint: #4a2a28; color: #f6b2a5; background: var(--space-tint); border-top-color: var(--space-accent); }
+
+.fast-track-board .board-space.my-dream {
+  --space-accent: #f5cf73;
+  color: #fff3d6;
+  background: linear-gradient(150deg, #6b4c12, #3a2c10);
+  box-shadow: 0 0 0 2px rgb(245 207 115 / 55%), 0 0 18px rgb(245 207 115 / 30%);
+}
+
+.fast-panel .board-center .decision {
+  color: var(--ink);
+  background: var(--paper);
+  border-radius: 8px;
+}
+
+/* Where the active player stands. */
+.board-space.current-space {
+  z-index: 3;
+  box-shadow: 0 0 0 2px var(--space-accent), 0 6px 16px rgb(23 32 29 / 18%);
+  animation: space-land .45s ease-out;
+}
+
+@keyframes space-land {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+
+/* Pieces hop from space to space while walking. */
+.piece {
+  display: inline-flex;
+}
+
+.piece.walking {
+  animation: piece-hop .16s ease-out;
+}
+
+@keyframes piece-hop {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-7px) scale(1.12); }
+  100% { transform: translateY(0); }
+}
+
+/* Dice result chip in the board header. */
+.track-panel > header {
+  gap: 8px;
+}
+
+.track-panel > header > span:last-child {
+  margin-left: auto;
+}
+
+.track-panel > header .dice-pop {
+  --player-color: #16664d;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px 2px 5px;
+  color: white;
+  background: var(--player-color);
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgb(23 32 29 / 22%);
+  font: 700 13px 'DM Mono', monospace;
+  opacity: 1;
+  animation: dice-pop .55s cubic-bezier(.2, 1.4, .4, 1);
+}
+
+.dice-pop svg {
+  width: 18px;
+  height: 18px;
+  animation: dice-tumble .55s ease-out;
+}
+
+.track-panel > header .dice-pop.player-1 { --player-color: #39758d; }
+.track-panel > header .dice-pop.player-2 { --player-color: #b75a47; }
+.track-panel > header .dice-pop.player-3 { --player-color: #9a6c13; }
+
+@keyframes dice-pop {
+  0% { opacity: 0; transform: translateY(-6px) scale(.6); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes dice-tumble {
+  0% { transform: rotate(-200deg); }
+  100% { transform: rotate(0); }
+}
+
+/* Roll button: the main action in the centre of the board. */
+.board-center .roll:not(.secondary) {
+  color: #2b1f00;
+  background: linear-gradient(180deg, #f8d77f, var(--gold));
+  box-shadow: 0 4px 0 #a37a14, 0 10px 22px rgb(201 151 31 / 30%);
+  transition: transform .1s ease, box-shadow .1s ease;
+}
+
+.board-center .roll:not(.secondary):hover {
+  background: linear-gradient(180deg, #fbe09a, #d6a52b);
+}
+
+.board-center .roll:not(.secondary):active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #a37a14, 0 4px 10px rgb(201 151 31 / 25%);
+}
+
+.board-center .roll svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (min-width: 781px) {
+  .board-center .decision.ready {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .board-center .decision.ready .turn-actions {
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .board-center .decision.ready .strategy-actions {
+    justify-content: center;
+  }
+
+  .board-center .roll {
+    min-height: 50px;
+    padding: 0 30px;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+
+  .board-center .dice-options .roll {
+    min-width: 110px;
+  }
+
+  .board-center .decision.ready .ready-heading h2 {
+    font-size: 17px;
+  }
+}
+
+/* Value feedback: flash on change and float the delta. */
+.flash-value {
+  position: relative;
+  display: inline-block;
+  border-radius: 3px;
+}
+
+.flash-value.cash {
+  display: block;
+}
+
+.flash-value.up {
+  animation: value-up 1s ease-out;
+}
+
+.flash-value.down {
+  animation: value-down 1s ease-out;
+}
+
+.value-delta {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  padding: 1px 6px;
+  color: white;
+  border-radius: 999px;
+  font: 700 11px 'DM Mono', monospace;
+  font-style: normal;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: delta-float 1.6s ease-out forwards;
+}
+
+.flash-value.up .value-delta {
+  background: var(--green2);
+}
+
+.flash-value.down .value-delta {
+  background: var(--red);
+}
+
+@keyframes value-up {
+  0% { background-color: rgb(29 128 96 / 35%); }
+  100% { background-color: transparent; }
+}
+
+@keyframes value-down {
+  0% { background-color: rgb(183 77 61 / 30%); }
+  100% { background-color: transparent; }
+}
+
+@keyframes delta-float {
+  0% { opacity: 0; transform: translateY(6px); }
+  15% { opacity: 1; transform: translateY(0); }
+  75% { opacity: 1; transform: translateY(-6px); }
+  100% { opacity: 0; transform: translateY(-12px); }
+}
+
+/* Cash is the first number players check, so it gets more weight. */
+.finance-panel .cash {
+  padding: 11px 13px;
+  font-size: 17px;
+  font-weight: 600;
+  border-left: 4px solid var(--gold);
+}
+
+/* Guide card: keep it off the board. Desktop docks it over the event log column. */
+.guide-card {
+  animation: guide-in .3s ease-out;
+}
+
+@keyframes guide-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; }
+}
+
+@media (min-width: 1081px) {
+  /* Sits in flow at the top of the event log column. */
+  .activity-panel > .guide-card {
+    position: static;
+    width: auto;
+    margin-bottom: 14px;
+    transform: none;
+    grid-template-columns: auto 1fr;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgb(27 48 39 / 10%);
+  }
+
+  .guide-card > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .board-space {
+    font-size: 11px;
+  }
+
+  /* Let the board use the full height of the play area. */
+  .play-area .board-workspace,
+  .play-area .track-panel {
+    height: 100%;
+  }
+
+  .play-area .track-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .play-area .track-panel .board-grid {
+    flex: 1;
+    width: 100%;
+    height: auto;
+    max-width: 920px;
+    max-height: 640px;
+    aspect-ratio: auto;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 1080px) {
+  .guide-card {
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    left: auto;
+    width: min(360px, calc(100% - 32px));
+    transform: none;
+    border-radius: 8px;
+  }
+}
+
+/* Phones: a dismissible sheet at the bottom instead of pushing the board down. */
+@media (max-width: 600px) {
+  .guide-card {
+    position: fixed;
+    z-index: 60;
+    top: auto;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    left: 8px;
+    border: 1px solid #dfc56f;
+    border-radius: 10px;
+    box-shadow: 0 -6px 28px rgb(23 32 29 / 22%);
+  }
+}
+
+@media (max-width: 780px) {
+  /* Your own finances come before the opponents'. */
+  .finance-panel { order: 2; }
+  .opponent-dashboard { order: 3; }
+
+  .board-space .space-icon {
+    right: 3px;
+    bottom: 3px;
+    width: clamp(11px, 38%, 18px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-space.current-space,
+  .piece.walking,
+  .dice-pop,
+  .dice-pop svg,
+  .flash-value.up,
+  .flash-value.down,
+  .value-delta,
+  .guide-card {
+    animation: none;
+  }
+
+  .value-delta {
+    display: none;
+  }
+}
+
+/* Tablet: the header actions used to spill out of the fixed-height top bar. */
+@media (min-width: 781px) and (max-width: 1080px) {
+  .progress-band {
+    height: auto;
+    min-height: 68px;
+    row-gap: 6px;
+  }
+
+  .progress-band .header-actions {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+/* Phones: grow the board to fit the centre controls instead of letting them spill out. */
+@media (max-width: 780px) {
+  .track-panel .board-grid,
+  .fast-panel .board-grid {
+    height: auto;
+    aspect-ratio: auto;
+    grid-template-rows: repeat(6, minmax(48px, auto));
+  }
+
+  .board-center .decision {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Living economy: security ticker and credit card controls. */
+.ticker ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ticker li {
+  padding: 7px 0;
+  border-bottom: 1px solid #e8ebe7;
+}
+
+.ticker li:last-child {
+  border-bottom: 0;
+}
+
+.ticker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 60px auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.ticker-symbol strong,
+.ticker-price strong {
+  display: block;
+  font: 600 12px 'DM Mono', monospace;
+}
+
+.ticker-symbol small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticker-price {
+  min-width: 62px;
+  text-align: right;
+}
+
+.ticker-price small {
+  display: block;
+  font: 600 10px 'DM Mono', monospace;
+  color: var(--muted);
+}
+
+.ticker-price small.up { color: var(--green2); }
+.ticker-price small.down { color: var(--red); }
+
+.sparkline {
+  width: 60px;
+  height: 20px;
+  overflow: visible;
+}
+
+.sparkline polyline {
+  fill: none;
+  stroke: var(--green2);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sparkline.down polyline {
+  stroke: var(--red);
+}
+
+.ticker-holding {
+  margin-top: 5px;
+  padding: 5px 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #f3f6f2;
+  border-radius: 5px;
+}
+
+.ticker-holding small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ticker-holding button {
+  min-height: 26px;
+  padding: 0 9px;
+  color: white;
+  background: var(--green);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ticker-holding button.loss {
+  background: #8a5a50;
+}
+
+.credit-repay {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 7px;
+  color: #6b2f25;
+  background: #fbefec;
+  border: 1px solid #ecc9c1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.credit-repay svg {
+  grid-row: span 2;
+  width: 18px;
+  height: 18px;
+}
+
+.credit-repay small {
+  color: #8f5a50;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.decision-icon.doodad-icon {
+  color: #b74d3d;
+  background: #fbefec;
+}
+
+/* Post-game report. Series colours are the validated categorical slots 1 (blue) and 2 (orange). */
+.game-report {
+  --report-passive: #2a78d6;
+  --report-expenses: #eb6834;
+  --report-cash: #2a78d6;
+  margin: 18px 0 6px;
+  padding: 14px 16px;
+  text-align: left;
+  background: #fcfcfb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.game-report header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  color: var(--green);
+}
+
+.game-report header svg {
+  width: 18px;
+  height: 18px;
+}
+
+.game-report h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.game-report header span {
+  margin-left: auto;
+  padding: 2px 8px;
+  color: #5c4100;
+  background: var(--gold-soft);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.game-report h4 {
+  margin: 10px 0 2px;
+  color: #52514e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.report-legend {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #52514e;
+  font-size: 11px;
+}
+
+.report-legend span,
+.report-tooltip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.report-legend small {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.report-legend i,
+.report-tooltip i {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 2px;
+}
+
+.game-report i.series-passive { background: var(--report-passive); }
+.game-report i.series-expenses { background: var(--report-expenses); }
+.game-report i.series-cash { background: var(--report-cash); }
+
+.report-charts {
+  position: relative;
+  outline: none;
+}
+
+.report-charts:focus-visible {
+  box-shadow: 0 0 0 3px rgb(29 128 96 / 28%);
+  border-radius: 4px;
+}
+
+.report-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.report-grid line {
+  stroke: #e6e8e3;
+  stroke-width: 1;
+}
+
+.report-grid text,
+.report-axis {
+  fill: #8a8f8b;
+  font: 500 10px 'DM Mono', monospace;
+}
+
+.report-series polyline {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.report-series.series-passive polyline { stroke: var(--report-passive); }
+.report-series.series-expenses polyline { stroke: var(--report-expenses); }
+.report-series.series-cash polyline { stroke: var(--report-cash); }
+
+.report-direct-label {
+  fill: #52514e;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.report-milestone line {
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.report-milestone text {
+  fill: #7a5600;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.report-hover line {
+  stroke: #52514e;
+  stroke-width: 1;
+}
+
+.report-hover circle {
+  stroke: #fcfcfb;
+  stroke-width: 2;
+}
+
+.report-hover circle.series-passive { fill: var(--report-passive); }
+.report-hover circle.series-expenses { fill: var(--report-expenses); }
+.report-hover circle.series-cash { fill: var(--report-cash); }
+
+.report-hit {
+  fill: transparent;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+
+.report-tooltip {
+  position: absolute;
+  top: 6px;
+  z-index: 2;
+  min-width: 150px;
+  padding: 8px 10px;
+  display: grid;
+  gap: 3px;
+  color: #52514e;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 8px 22px rgb(20 38 31 / 16%);
+  transform: translateX(-50%);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.report-tooltip strong {
+  min-width: 62px;
+  color: var(--ink);
+  font: 600 12px 'DM Mono', monospace;
+}
+
+.report-highlights {
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+  list-style: none;
+}
+
+.report-highlights li {
+  padding: 7px 9px;
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 8px;
+  align-items: start;
+  color: var(--ink);
+  background: #f3f6f2;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.report-highlights li svg {
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  color: var(--green);
+}
+
+.report-highlights li.negative {
+  background: #fbf1ee;
+}
+
+.report-highlights li.negative svg {
+  color: var(--red);
+}
+
+.report-table {
+  margin-top: 10px;
+  font-size: 11px;
+}
+
+.report-table summary {
+  color: var(--green);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.report-table table {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font: 500 10px 'DM Mono', monospace;
+}
+
+.report-table th,
+.report-table td {
+  padding: 3px 6px;
+  text-align: right;
+  border-bottom: 1px solid #ecefeb;
+}
+
+.report-table th:first-child,
+.report-table td:first-child {
+  text-align: left;
+}
+
+/* Daily challenge */
+.daily-card {
+  margin: 20px 32px 0;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(120deg, #fff6dc, #fdf0c8);
+  border: 1px solid #ead59d;
+  border-radius: 10px;
+}
+
+.daily-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: #5c4100;
+  background: #f5cf73;
+  border-radius: 10px;
+}
+
+.daily-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.daily-copy small {
+  color: #7a5600;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.daily-copy strong {
+  display: block;
+  margin: 1px 0 2px;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.daily-copy p {
+  margin: 0;
+  color: #5d5442;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.daily-copy .daily-best {
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--green);
+  font-weight: 700;
+}
+
+.daily-best b,
+.daily-summary b {
+  padding: 1px 7px;
+  color: white;
+  background: #c06a1f;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.daily-card .primary {
+  white-space: nowrap;
+}
+
+.daily-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  color: #174f3e;
+  background: #f5cf73;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.daily-summary {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  background: #fff6dc;
+  border: 1px solid #ead59d;
+  border-radius: 8px;
+}
+
+.daily-summary small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #7a5600;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.daily-summary small svg {
+  width: 13px;
+  height: 13px;
+}
+
+.daily-summary strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.daily-summary button {
+  min-height: 34px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.daily-share-text {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font: 500 11px 'DM Mono', monospace;
+}
+
+@media (max-width: 600px) {
+  .daily-card {
+    margin: 14px 12px 0;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .daily-card .primary {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Achievements */
+.achievements-button {
+  align-self: flex-start;
+  justify-self: start;
+  width: auto;
+  min-height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #5c4100;
+  background: #fff3d6;
+  border: 1px solid #ead59d;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.achievements-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.achievements-panel {
+  width: min(640px, calc(100% - 24px));
+}
+
+.achievement-unlocks {
+  margin: 4px 0 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.achievement-unlocks span {
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  background: #eef1ed;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.achievement-unlocks span.unlocked {
+  color: #5c4100;
+  background: var(--gold-soft);
+}
+
+.achievement-unlocks svg {
+  width: 13px;
+  height: 13px;
+}
+
+.achievement-unlocks small {
+  width: 100%;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.achievement-list {
+  max-height: min(56vh, 520px);
+  margin: 0 0 14px;
+  padding: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  list-style: none;
+}
+
+.achievement-list li {
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 10px;
+  text-align: left;
+  background: #f5f7f3;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.achievement-list li.unlocked {
+  background: #fffaf0;
+  border-color: #ead59d;
+}
+
+.achievement-list li.locked {
+  opacity: .72;
+}
+
+.achievement-icon {
+  grid-row: span 2;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: #8a8f8b;
+  background: #e6e9e4;
+  border-radius: 50%;
+}
+
+.achievement-list li.unlocked .achievement-icon {
+  color: #5c4100;
+  background: #f5cf73;
+}
+
+.achievement-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.achievement-list strong {
+  display: block;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.achievement-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.achievement-list time {
+  grid-column: 2;
+  color: #9a6c13;
+  font: 500 9px 'DM Mono', monospace;
+}
+
+.achievement-summary {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  text-align: left;
+  background: linear-gradient(120deg, #fffaf0, #fff3d6);
+  border: 1px solid #ead59d;
+  border-radius: 8px;
+  animation: celebration-arrive .4s ease-out;
+}
+
+.achievement-summary > small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #7a5600;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.achievement-summary small svg {
+  width: 13px;
+  height: 13px;
+}
+
+.achievement-summary ul {
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+}
+
+.achievement-summary li {
+  padding: 4px 10px 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #3d2c00;
+  background: #f5cf73;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.achievement-summary li svg {
+  width: 15px;
+  height: 15px;
+}
+
+.achievement-summary p {
+  margin: 8px 0 0;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .achievement-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-summary {
+    animation: none;
+  }
+}
